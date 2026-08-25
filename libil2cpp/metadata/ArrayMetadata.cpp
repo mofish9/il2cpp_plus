@@ -24,6 +24,7 @@
 #include "utils/StringUtils.h"
 #include "il2cpp-class-internals.h"
 #include "il2cpp-tabledefs.h"
+#include "hybridclr/Il2CppCompatibleDef.h"
 #include <vector>
 #include <limits>
 
@@ -369,7 +370,7 @@ namespace metadata
         else
         {
             inflatedMethod = (MethodInfo*)MetadataCalloc(1, sizeof(MethodInfo), IL2CPP_MSTAT_METHOD);
-            memcpy(inflatedMethod, genericArrayMethod.method, sizeof(MethodInfo));
+            hybridclr::CopyMethodInfo(inflatedMethod, genericArrayMethod.method, sizeof(MethodInfo));
         }
 
         inflatedMethod->name = genericArrayMethod.name;

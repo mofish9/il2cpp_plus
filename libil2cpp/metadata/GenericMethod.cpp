@@ -61,7 +61,7 @@ static MethodInfo* AllocGenericMethodInfo(bool hasFullGenericSignature)
 static MethodInfo* AllocCopyGenericMethodInfo(const MethodInfo* sourceMethodInfo)
 {
     MethodInfo* newMethodInfo = AllocGenericMethodInfo(sourceMethodInfo->has_full_generic_sharing_signature);
-    memcpy(newMethodInfo, sourceMethodInfo, SizeOfGenericMethodInfo(sourceMethodInfo->has_full_generic_sharing_signature));
+    hybridclr::CopyMethodInfo(newMethodInfo, sourceMethodInfo, SizeOfGenericMethodInfo(sourceMethodInfo->has_full_generic_sharing_signature));
     return newMethodInfo;
 }
 
@@ -210,7 +210,7 @@ namespace metadata
             // is_inflated is used as an initialized check
             if (!ambiguousMethodInfo.is_inflated)
             {
-                memcpy(&ambiguousMethodInfo, gmethod->methodDefinition, sizeof(MethodInfo));
+                hybridclr::CopyMethodInfo(&ambiguousMethodInfo, gmethod->methodDefinition, sizeof(MethodInfo));
                 ambiguousMethodInfo.is_inflated = true;
                 ambiguousMethodInfo.rawVirtualMethodPointer = gmethod->methodDefinition->virtualMethodPointer;
                 ambiguousMethodInfo.rawDirectMethodPointer = gmethod->methodDefinition->methodPointer;
@@ -302,7 +302,9 @@ namespace metadata
         newMethod->methodPointer = methodPointers.methodPointer;
         if (methodPointers.methodPointer)
         {
-            newMethod->invoker_method = methodPointers.invoker_method;
+            newMethod->invoker_method = hasFullGenericSharingSignature
+                ? hybridclr::NormalizeFullGenericSharingAotInvoker(methodPointers.invoker_method)
+                : methodPointers.invoker_method;
         }
         else
         {
@@ -313,6 +315,8 @@ namespace metadata
         }
 
         newMethod->has_full_generic_sharing_signature = hasFullGenericSharingSignature;
+        newMethod->hasFullGenericSharingAotInvoker = !hasFullGenericSharingSignature ||
+            hybridclr::IsValidFullGenericSharingAotInvoker(newMethod->invoker_method);
         bool isInterpMethod = hybridclr::metadata::IsInterpreterMethod(newMethod);
         if (!isInterpMethod)
         {
@@ -383,7 +387,12 @@ namespace metadata
 
         bool isAotImplByInterp = hybridclr::metadata::MetadataModule::IsImplementedByInterpreter(newMethod);
         bool isAdjustorThunkMethod = IS_CLASS_VALUE_TYPE(newMethod->klass) && hybridclr::metadata::IsInstanceMethod(newMethod);
-        if (isInterpMethod || (isAotImplByInterp && (newMethod->methodPointer == nullptr || newMethod->methodPointer == AnUnresolvedCallStubWasNotFound || newMethod->methodPointer == (Il2CppMethodPointer)AnUnresolvedCallStubWasNotFoundValueType)))
+        bool needsInterpreterAotFallback = indirectCallViaInvokers
+            ? !newMethod->hasFullGenericSharingAotInvoker
+            : newMethod->methodPointer == nullptr ||
+                newMethod->methodPointer == AnUnresolvedCallStubWasNotFound ||
+                newMethod->methodPointer == (Il2CppMethodPointer)AnUnresolvedCallStubWasNotFoundValueType;
+        if (isInterpMethod || (isAotImplByInterp && needsInterpreterAotFallback))
         {
             newMethod->invoker_method = hybridclr::interpreter::InterpreterModule::GetMethodInvoker(newMethod);
             newMethod->methodPointer = newMethod->methodPointerCallByInterp = hybridclr::interpreter::InterpreterModule::GetMethodPointer(newMethod);
