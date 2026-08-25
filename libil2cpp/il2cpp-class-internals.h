@@ -363,9 +363,11 @@ typedef struct MethodInfo
     // ==={{ hybridclr
     bool initInterpCallMethodPointer : 1;
     bool isInterpterImpl : 1;
+    bool hasFullGenericSharingAotInvoker : 1;
     void* interpData;
     Il2CppMethodPointer methodPointerCallByInterp;
     Il2CppMethodPointer virtualMethodPointerCallByInterp;
+    uint32_t fullGenericSharingPreparationState;
     // ===}} hybridclr
 } MethodInfo;
 

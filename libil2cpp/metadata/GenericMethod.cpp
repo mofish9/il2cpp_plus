@@ -61,7 +61,7 @@ static MethodInfo* AllocGenericMethodInfo()
 static MethodInfo* AllocCopyGenericMethodInfo(const MethodInfo* sourceMethodInfo)
 {
     MethodInfo* newMethodInfo = AllocGenericMethodInfo();
-    memcpy(newMethodInfo, sourceMethodInfo, SizeOfGenericMethodInfo());
+    hybridclr::CopyMethodInfo(newMethodInfo, sourceMethodInfo, SizeOfGenericMethodInfo());
     return newMethodInfo;
 }
 
@@ -173,7 +173,7 @@ namespace metadata
             // is_inflated is used as an initialized check
             if (!ambiguousMethodInfo.is_inflated)
             {
-                memcpy(&ambiguousMethodInfo, gmethod->methodDefinition, sizeof(MethodInfo));
+                hybridclr::CopyMethodInfo(&ambiguousMethodInfo, gmethod->methodDefinition, sizeof(MethodInfo));
                 ambiguousMethodInfo.is_inflated = true;
                 // This method must have methodPointer null so that the test in RaiseExecutionEngineExceptionIfGenericVirtualMethodIsNotFound fails
                 ambiguousMethodInfo.methodPointer = NULL;
@@ -275,6 +275,12 @@ namespace metadata
         if (!isInterpMethod)
         {
             newMethod->has_full_generic_sharing_signature = methodPointers.isFullGenericShared && HasFullGenericSharedParametersOrReturn(gmethod->methodDefinition);
+            if (newMethod->has_full_generic_sharing_signature)
+            {
+                newMethod->invoker_method = hybridclr::NormalizeFullGenericSharingAotInvoker(newMethod->invoker_method);
+            }
+            newMethod->hasFullGenericSharingAotInvoker = !newMethod->has_full_generic_sharing_signature ||
+                hybridclr::IsValidFullGenericSharingAotInvoker(newMethod->invoker_method);
 
             // Full generic sharing methods should be called via invoker
             // And invalid static methods can't use the unresolved virtual call stubs
