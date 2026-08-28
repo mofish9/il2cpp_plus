@@ -47,6 +47,7 @@
 
 #include <set>
 #include "hybridclr/metadata/MetadataUtil.h"
+#include "hybridclr/metadata/MetadataModule.h"
 #include "hybridclr/interpreter/Engine.h"
 #include "hybridclr/interpreter/Interpreter.h"
 #include "hybridclr/interpreter/InterpreterModule.h"
@@ -963,6 +964,8 @@ namespace vm
 
         size_t instanceSize = 0;
         size_t actualSize = 0;
+        bool hasNormalStaticFields = false;
+        bool hasThreadStaticFields = false;
         if (klass->parent)
         {
             IL2CPP_ASSERT(klass->parent->size_inited);
@@ -985,6 +988,8 @@ namespace vm
             for (uint16_t i = 0; i < klass->field_count; i++)
             {
                 FieldInfo* field = klass->fields + i;
+                hasNormalStaticFields |= Field::IsNormalStatic(field);
+                hasThreadStaticFields |= Field::IsThreadStatic(field);
                 if (!Field::IsInstance(field))
                     continue;
 
@@ -994,8 +999,8 @@ namespace vm
             }
 
             il2cpp::metadata::FieldLayout::FieldLayoutData layoutData;
-            il2cpp::metadata::FieldLayout::FieldLayoutData staticLayoutData;
-            il2cpp::metadata::FieldLayout::FieldLayoutData threadStaticLayoutData;
+            il2cpp::metadata::FieldLayout::FieldLayoutData staticLayoutData = {};
+            il2cpp::metadata::FieldLayout::FieldLayoutData threadStaticLayoutData = {};
 
             // If a type has references, ignore any packing
             // All reference types must be aligned on a pointer sized boundary
@@ -1019,8 +1024,10 @@ namespace vm
 
             klass->size_inited = true;
 
-            il2cpp::metadata::FieldLayout::LayoutStaticFields(klass, staticLayoutData);
-            il2cpp::metadata::FieldLayout::LayoutThreadStaticFields(klass, threadStaticLayoutData);
+            if (hasNormalStaticFields)
+                il2cpp::metadata::FieldLayout::LayoutStaticFields(klass, staticLayoutData);
+            if (hasThreadStaticFields)
+                il2cpp::metadata::FieldLayout::LayoutThreadStaticFields(klass, threadStaticLayoutData);
 
             klass->minimumAlignment = layoutData.minimumAlignment;
             if (klass->generic_class != NULL || MetadataCache::StructLayoutSizeIsDefault(klass->typeMetadataHandle))
@@ -1079,6 +1086,9 @@ namespace vm
 
     static void SetupFieldsFromDefinitionLocked(Il2CppClass* klass, const il2cpp::os::FastAutoLock& lock)
     {
+#if IL2CPP_DEBUG
+        IL2CPP_ASSERT(lock.IsLock(&g_MetadataLock));
+#endif
         if (klass->field_count == 0)
         {
             klass->fields = NULL;
@@ -1105,9 +1115,11 @@ namespace vm
         klass->fields = fields;
     }
 
-// passing lock to ensure we have acquired it. We can add asserts later
     void SetupFieldsLocked(Il2CppClass *klass, const il2cpp::os::FastAutoLock& lock)
     {
+#if IL2CPP_DEBUG
+        IL2CPP_ASSERT(lock.IsLock(&g_MetadataLock));
+#endif
         if (klass->size_inited)
             return;
 
@@ -1125,11 +1137,19 @@ namespace vm
         }
         else
         {
+            if (hybridclr::metadata::IsInterpreterType(klass))
+                hybridclr::metadata::MetadataModule::EnsureTypeFieldMetadataInitializedLocked(klass);
             SetupFieldsFromDefinitionLocked(klass, lock);
         }
 
         if (!Class::IsGeneric(klass))
-            LayoutFieldsLocked(klass, lock);
+        {
+            bool appliedInterpreterLayout = false;
+            if (hybridclr::metadata::IsInterpreterType(klass))
+                appliedInterpreterLayout = hybridclr::metadata::MetadataModule::TryApplyClassLayoutLocked(klass);
+            if (!appliedInterpreterLayout)
+                LayoutFieldsLocked(klass, lock);
+        }
 
         // Set the init flags after a barrier so they are set after all data is written
         il2cpp::os::Atomic::FullMemoryBarrier();
@@ -1149,9 +1169,11 @@ namespace vm
     void InitOneMethod(Il2CppClass* klass, MethodInfo* newMethod, MethodIndex index)
     {
                 Il2CppMetadataMethodInfo methodInfo = MetadataCache::GetMethodInfo(klass, index);
-
                 newMethod->name = methodInfo.name;
 
+                // Keep method-pointer resolution on the engine's canonical path.
+                // The direct interpreter shortcut moves work into the first entry
+                // call and has regressed entry P95 in entry-first measurements.
                 newMethod->methodPointer = MetadataCache::GetMethodPointer(klass->image, methodInfo.token);
 
                 if (klass->byval_arg.valuetype)
@@ -1172,7 +1194,9 @@ namespace vm
 
                 newMethod->parameters_count = (uint8_t)methodInfo.parameterCount;
 
-        const Il2CppType** parameters = (const Il2CppType**)MetadataCalloc(methodInfo.parameterCount, sizeof(Il2CppType*), IL2CPP_MSTAT_METHOD);
+		const Il2CppType** parameters = methodInfo.parameterCount == 0
+			? NULL
+			: (const Il2CppType**)MetadataCalloc(methodInfo.parameterCount, sizeof(Il2CppType*), IL2CPP_MSTAT_METHOD);
                 for (uint16_t paramIndex = 0; paramIndex < methodInfo.parameterCount; ++paramIndex)
                 {
                     Il2CppMetadataParameterInfo paramInfo = MetadataCache::GetParameterInfo(klass, methodInfo.handle, paramIndex);
@@ -1206,24 +1230,23 @@ namespace vm
     }
 
 
-// passing lock to ensure we have acquired it. We can add asserts later
     void SetupMethodsLocked(Il2CppClass *klass, const il2cpp::os::FastAutoLock& lock)
     {
+#if IL2CPP_DEBUG
+        IL2CPP_ASSERT(lock.IsLock(&g_MetadataLock));
+#endif
+        if (klass->is_method_table_initialized)
+            return;
         if ((!klass->method_count && !klass->rank) /* || klass->methods */ )
             return;
 
         if (klass->generic_class)
         {
-            if (klass->methods)
-                return;
             Class::InitLocked(GenericClass::GetTypeDefinition(klass->generic_class), lock);
             GenericClass::SetupMethods(klass);
         }
         else if (klass->rank)
         {
-            if (klass->methods)
-                return;
-
             Class::InitLocked(klass->element_class, lock);
             il2cpp::metadata::ArrayMetadata::SetupArrayVTable(klass, lock);
             klass->is_vtable_initialized = 1;
@@ -1236,32 +1259,81 @@ namespace vm
                 return;
             }
 
-            if (klass->methods == NULL) {
-                klass->methods = (const MethodInfo**)MetadataCalloc(klass->method_count, sizeof(MethodInfo*), IL2CPP_MSTAT_METHOD);
-            }
+            if (hybridclr::metadata::IsInterpreterType(klass))
+                hybridclr::metadata::MetadataModule::EnsureTypeMethodMetadataInitializedLocked(klass);
 
             MethodIndex end = klass->method_count;
+            // Reflection normally materializes every method of a type in one pass.
+            // Keep the lazy per-method fallback for partially populated method arrays,
+            // but use one contiguous allocation for the common all-at-once path.
+            const MethodInfo** methods = klass->methods;
+            const bool publishMethodArray = methods == NULL;
+            if (publishMethodArray)
+                methods = (const MethodInfo**)MetadataCalloc(end, sizeof(MethodInfo*), IL2CPP_MSTAT_METHOD);
+
+            MethodInfo* contiguousMethods = nullptr;
+            bool hasExistingMethod = false;
+            for (MethodIndex index = 0; index < end; ++index)
+            {
+                if (methods[index] != NULL)
+                {
+                    hasExistingMethod = true;
+                    break;
+                }
+            }
+            if (!hasExistingMethod)
+            {
+                contiguousMethods = (MethodInfo*)MetadataCalloc(end, sizeof(MethodInfo), IL2CPP_MSTAT_METHOD);
+            }
 
             for (MethodIndex index = 0; index < end; ++index)
             {
-                if (klass->methods[index] != NULL)
+                if (methods[index] != NULL)
                     continue;
 
-                MethodInfo* newMethod = (MethodInfo*)MetadataMalloc(sizeof(MethodInfo), IL2CPP_MSTAT_METHOD);
-                memset(newMethod, 0, sizeof(MethodInfo));
+                MethodInfo* newMethod = contiguousMethods != nullptr
+                    ? &contiguousMethods[index]
+                    : (MethodInfo*)MetadataMalloc(sizeof(MethodInfo), IL2CPP_MSTAT_METHOD);
+                if (contiguousMethods == nullptr)
+                    memset(newMethod, 0, sizeof(MethodInfo));
 
                 InitOneMethod(klass, newMethod, index);
 
-                klass->methods[index] = newMethod;
+                if (publishMethodArray)
+                    methods[index] = newMethod;
+                else
+                    il2cpp::os::Atomic::PublishPointer(&methods[index], static_cast<const MethodInfo*>(newMethod));
 
                 ++il2cpp_runtime_stats.method_count;
             }
+
+            if (publishMethodArray)
+            {
+                // Publish the fully initialized array once. A per-slot release
+                // store is only needed when filling an already visible lazy array.
+                il2cpp::os::Atomic::PublishPointer(&klass->methods, methods);
+            }
         }
+
+		il2cpp::os::Atomic::FullMemoryBarrier();
+		klass->is_method_table_initialized = 1;
+    }
+
+    static bool IsMethodTableInitialized(const Il2CppClass* klass)
+    {
+        if (!klass->is_method_table_initialized)
+            return false;
+
+        // SetupMethodsLocked publishes the completion bit after a full barrier.
+        // Pair it with a read barrier before consuming the method array on weakly
+        // ordered targets such as ARM64.
+        il2cpp::os::Atomic::FullMemoryBarrier();
+        return true;
     }
 
     void Class::SetupMethods(Il2CppClass *klass)
     {
-        if (klass->method_count || klass->rank)
+        if ((klass->method_count || klass->rank) && !IsMethodTableInitialized(klass))
         {
             il2cpp::os::FastAutoLock lock(&g_MetadataLock);
             SetupMethodsLocked(klass, lock);
@@ -2491,7 +2563,8 @@ namespace vm
             }
 
             if (klass->methods == NULL) {
-                klass->methods = (const MethodInfo**)MetadataCalloc(klass->method_count, sizeof(MethodInfo*), IL2CPP_MSTAT_METHOD);//init once
+                const MethodInfo** methods = (const MethodInfo**)MetadataCalloc(klass->method_count, sizeof(MethodInfo*), IL2CPP_MSTAT_METHOD);//init once
+                il2cpp::os::Atomic::PublishPointer(&klass->methods, methods);
             }
 
             MethodInfo* newMethod = (MethodInfo*)MetadataMalloc(sizeof(MethodInfo), IL2CPP_MSTAT_METHOD);
@@ -2499,7 +2572,7 @@ namespace vm
 
             InitOneMethod(klass, newMethod, index);
 
-            klass->methods[index] = newMethod;
+            il2cpp::os::Atomic::PublishPointer(&klass->methods[index], static_cast<const MethodInfo*>(newMethod));
 
             ++il2cpp_runtime_stats.method_count;
 
@@ -2511,6 +2584,20 @@ namespace vm
     {
         if (klass->method_count || klass->rank)
         {
+            // Ordinary interpreter classes publish each slot independently. Read an
+            // already materialized slot without contending on the metadata lock;
+            // generic instances and arrays retain their specialized locked paths.
+            if (klass->generic_class == NULL && klass->rank == 0 && index < klass->method_count)
+            {
+                const MethodInfo** methods = il2cpp::os::Atomic::LoadPointerAcquire(&klass->methods);
+                if (methods != NULL)
+                {
+                    const MethodInfo* method = il2cpp::os::Atomic::LoadPointerAcquire(&methods[index]);
+                    if (method != NULL)
+                        return method;
+                }
+            }
+
             il2cpp::os::FastAutoLock lock(&g_MetadataLock);
             return GetOrSetupOneMethodLocked(klass, index, lock);
         }

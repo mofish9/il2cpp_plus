@@ -396,9 +396,13 @@ namespace System
         if (reflectedType->type->byref || !ValidBindingFlagsForGetMember(bindingFlags))
             return vm::Array::New(il2cpp_defaults.field_info_class, 0);
 
-        std::vector<FieldInfo*> fields;
         Il2CppClass* typeInfo = vm::Class::FromIl2CppType(reflectedType->type);
         Il2CppClass* const originalType = typeInfo;
+        std::vector<FieldInfo*> fields;
+        size_t fieldCapacity = typeInfo->field_count;
+        for (Il2CppClass* parent = typeInfo->parent; parent != NULL; parent = vm::Class::GetParent(parent))
+            fieldCapacity += parent->field_count;
+        fields.reserve(fieldCapacity);
 
         CollectTypeFields(typeInfo, typeInfo, bindingFlags, fields, nameFilter);
 
@@ -463,8 +467,66 @@ namespace System
         return reinterpret_cast<intptr_t>(void_ptr_array_to_gptr_array(res_array));
     }
 
+    // Most reflected types have only a small number of virtual slots. Keep the
+    // duplicate-suppression table on the stack for that common case; large
+    // interfaces/classes transparently spill to the heap.
+    class MethodSlotTracker
+    {
+    public:
+        MethodSlotTracker() : _bitCapacity(0)
+        {
+        }
+
+        void Reset(size_t initialSize)
+        {
+            _overflow.clear();
+            _bitCapacity = 0;
+            Ensure(initialSize);
+        }
+
+        bool TestAndSet(size_t slot)
+        {
+            Ensure(slot + 1);
+            uint64_t* slots = _overflow.empty() ? _inlineSlots : _overflow.data();
+            const size_t word = slot / kWordBits;
+            const uint64_t mask = UINT64_C(1) << (slot % kWordBits);
+            const bool filled = (slots[word] & mask) != 0;
+            slots[word] |= mask;
+            return filled;
+        }
+
+    private:
+        static const size_t kWordBits = 64;
+        static const size_t kInlineWordCapacity = 4;
+
+        void Ensure(size_t required)
+        {
+            if (required <= _bitCapacity)
+                return;
+
+            const size_t oldWordCount = (_bitCapacity + kWordBits - 1) / kWordBits;
+            const size_t newWordCount = (required + kWordBits - 1) / kWordBits;
+            if (_overflow.empty() && newWordCount <= kInlineWordCapacity)
+            {
+                for (size_t i = oldWordCount; i < newWordCount; ++i)
+                    _inlineSlots[i] = 0;
+                _bitCapacity = newWordCount * kWordBits;
+                return;
+            }
+
+            if (_overflow.empty())
+                _overflow.assign(_inlineSlots, _inlineSlots + oldWordCount);
+            _overflow.resize(newWordCount, 0);
+            _bitCapacity = newWordCount * kWordBits;
+        }
+
+        uint64_t _inlineSlots[kInlineWordCapacity];
+        std::vector<uint64_t> _overflow;
+        size_t _bitCapacity;
+    };
+
     template<typename NameFilter>
-    void CollectTypeMethods(Il2CppClass* type, const Il2CppClass* originalType, uint32_t bindingFlags, const NameFilter& nameFilter, std::vector<const MethodInfo*>& methods, bool(&filledSlots)[65535])
+    void CollectTypeMethods(Il2CppClass* type, const Il2CppClass* originalType, uint32_t bindingFlags, const NameFilter& nameFilter, std::vector<const MethodInfo*>& methods, MethodSlotTracker* filledSlots)
     {
         void* iter = NULL;
         while (const MethodInfo* method = vm::Class::GetMethods(type, &iter))
@@ -474,12 +536,10 @@ namespace System
 
             if (CheckMemberMatch(method, type, originalType, bindingFlags, nameFilter))
             {
-                if ((method->flags & METHOD_ATTRIBUTE_VIRTUAL) != 0)
+                if ((method->flags & METHOD_ATTRIBUTE_VIRTUAL) != 0 && filledSlots != nullptr)
                 {
-                    if (filledSlots[method->slot])
+                    if (filledSlots->TestAndSet(method->slot))
                         continue;
-
-                    filledSlots[method->slot] = true;
                 }
 
                 methods.push_back(method);
@@ -490,19 +550,28 @@ namespace System
     template<typename NameFilter>
     static Il2CppArray* GetMethodsByNameImpl(const Il2CppType* type, uint32_t bindingFlags, const NameFilter& nameFilter)
     {
-        std::vector<const MethodInfo*> methods;
-        bool filledSlots[65535] = { 0 };
-
         Il2CppClass* typeInfo = vm::Class::FromIl2CppType(type);
+        MethodSlotTracker filledSlots;
+        MethodSlotTracker* filledSlotsPtr = nullptr;
+        if ((bindingFlags & BFLAGS_DeclaredOnly) == 0)
+        {
+            filledSlots.Reset(typeInfo->vtable_count);
+            filledSlotsPtr = &filledSlots;
+        }
+        std::vector<const MethodInfo*> methods;
+        size_t methodCapacity = typeInfo->method_count;
+        for (Il2CppClass* parent = typeInfo->parent; parent != NULL; parent = vm::Class::GetParent(parent))
+            methodCapacity += parent->method_count;
+        methods.reserve(methodCapacity);
         Il2CppClass* const originalTypeInfo = typeInfo;
 
-        CollectTypeMethods(typeInfo, typeInfo, bindingFlags, nameFilter, methods, filledSlots);
+        CollectTypeMethods(typeInfo, typeInfo, bindingFlags, nameFilter, methods, filledSlotsPtr);
 
         if ((bindingFlags & BFLAGS_DeclaredOnly) == 0)
         {
             for (typeInfo = vm::Class::GetParent(typeInfo); typeInfo != NULL; typeInfo = vm::Class::GetParent(typeInfo))
             {
-                CollectTypeMethods(typeInfo, originalTypeInfo, bindingFlags, nameFilter, methods, filledSlots);
+                CollectTypeMethods(typeInfo, originalTypeInfo, bindingFlags, nameFilter, methods, filledSlotsPtr);
             }
         }
 
