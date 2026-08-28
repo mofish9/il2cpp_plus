@@ -132,6 +132,7 @@ namespace vm
         static void SetupProperties(Il2CppClass *klass);
         static void SetupTypeHierarchy(Il2CppClass *klass);
         static void SetupInterfaces(Il2CppClass *klass);
+        static void SetupVTable(Il2CppClass* klass);
 
         static const il2cpp::utils::dynamic_array<Il2CppClass*>& GetStaticFieldData();
 
