@@ -47,6 +47,7 @@
 
 #include <set>
 #include "hybridclr/metadata/MetadataUtil.h"
+#include "hybridclr/metadata/MetadataModule.h"
 #include "hybridclr/interpreter/Engine.h"
 #include "hybridclr/interpreter/Interpreter.h"
 #include "hybridclr/interpreter/InterpreterModule.h"
@@ -65,7 +66,7 @@ namespace vm
     static void SetupGCDescriptor(Il2CppClass* klass, const il2cpp::os::FastAutoLock& lock);
     static void GetBitmapNoInit(Il2CppClass* klass, size_t* bitmap, size_t& maxSetBit, size_t parentOffset, const il2cpp::os::FastAutoLock* lockPtr);
     static Il2CppClass* ResolveGenericInstanceType(Il2CppClass*, const il2cpp::vm::TypeNameParseInfo&, TypeSearchFlags searchFlags);
-    static void SetupVTable(Il2CppClass *klass, const il2cpp::os::FastAutoLock& lock);
+    static void SetupVTableLocked(Il2CppClass *klass, const il2cpp::os::FastAutoLock& lock);
 
     Il2CppClass* Class::FromIl2CppType(const Il2CppType* type, bool throwOnError)
     {
@@ -907,6 +908,8 @@ namespace vm
 
         size_t instanceSize = 0;
         size_t actualSize = 0;
+        bool hasNormalStaticFields = false;
+        bool hasThreadStaticFields = false;
         if (klass->parent)
         {
             IL2CPP_ASSERT(klass->parent->size_inited);
@@ -929,6 +932,8 @@ namespace vm
             for (uint16_t i = 0; i < klass->field_count; i++)
             {
                 FieldInfo* field = klass->fields + i;
+                hasNormalStaticFields |= Field::IsNormalStatic(field);
+                hasThreadStaticFields |= Field::IsThreadStatic(field);
                 if (!Field::IsInstance(field))
                     continue;
 
@@ -938,8 +943,8 @@ namespace vm
             }
 
             il2cpp::metadata::FieldLayout::FieldLayoutData layoutData;
-            il2cpp::metadata::FieldLayout::FieldLayoutData staticLayoutData;
-            il2cpp::metadata::FieldLayout::FieldLayoutData threadStaticLayoutData;
+            il2cpp::metadata::FieldLayout::FieldLayoutData staticLayoutData = {};
+            il2cpp::metadata::FieldLayout::FieldLayoutData threadStaticLayoutData = {};
 
             il2cpp::metadata::FieldLayout::LayoutFields(klass, Field::IsInstance, instanceSize, actualSize, klass->minimumAlignment, klass->packingSize, layoutData);
 
@@ -958,8 +963,10 @@ namespace vm
 
             klass->size_inited = true;
 
-            il2cpp::metadata::FieldLayout::LayoutFields(klass, Field::IsNormalStatic, 0, 0, 1, 0, staticLayoutData);
-            il2cpp::metadata::FieldLayout::LayoutFields(klass, Field::IsThreadStatic, 0, 0, 1, 0, threadStaticLayoutData);
+            if (hasNormalStaticFields)
+                il2cpp::metadata::FieldLayout::LayoutFields(klass, Field::IsNormalStatic, 0, 0, 1, 0, staticLayoutData);
+            if (hasThreadStaticFields)
+                il2cpp::metadata::FieldLayout::LayoutFields(klass, Field::IsThreadStatic, 0, 0, 1, 0, threadStaticLayoutData);
 
             klass->minimumAlignment = layoutData.minimumAlignment;
             klass->actualSize = static_cast<uint32_t>(layoutData.actualClassSize);
@@ -1012,6 +1019,9 @@ namespace vm
 
     static void SetupFieldsFromDefinitionLocked(Il2CppClass* klass, const il2cpp::os::FastAutoLock& lock)
     {
+#if IL2CPP_DEBUG
+        IL2CPP_ASSERT(lock.IsLock(&g_MetadataLock));
+#endif
         if (klass->field_count == 0)
         {
             klass->fields = NULL;
@@ -1038,9 +1048,11 @@ namespace vm
         klass->fields = fields;
     }
 
-// passing lock to ensure we have acquired it. We can add asserts later
     void SetupFieldsLocked(Il2CppClass *klass, const il2cpp::os::FastAutoLock& lock)
     {
+#if IL2CPP_DEBUG
+        IL2CPP_ASSERT(lock.IsLock(&g_MetadataLock));
+#endif
         if (klass->size_inited)
             return;
 
@@ -1058,11 +1070,19 @@ namespace vm
         }
         else
         {
+            if (hybridclr::metadata::IsInterpreterType(klass))
+                hybridclr::metadata::MetadataModule::EnsureTypeFieldMetadataInitializedLocked(klass);
             SetupFieldsFromDefinitionLocked(klass, lock);
         }
 
         if (!Class::IsGeneric(klass))
-            LayoutFieldsLocked(klass, lock);
+        {
+            bool appliedInterpreterLayout = false;
+            if (hybridclr::metadata::IsInterpreterType(klass))
+                appliedInterpreterLayout = hybridclr::metadata::MetadataModule::TryApplyClassLayoutLocked(klass);
+            if (!appliedInterpreterLayout)
+                LayoutFieldsLocked(klass, lock);
+        }
 
         // Set the init flags after a barrier so they are set after all data is written
         il2cpp::os::Atomic::FullMemoryBarrier();
@@ -1079,9 +1099,11 @@ namespace vm
         }
     }
 
-// passing lock to ensure we have acquired it. We can add asserts later
     void SetupMethodsLocked(Il2CppClass *klass, const il2cpp::os::FastAutoLock& lock)
     {
+#if IL2CPP_DEBUG
+        IL2CPP_ASSERT(lock.IsLock(&g_MetadataLock));
+#endif
         if ((!klass->method_count && !klass->rank) || klass->methods)
             return;
 
@@ -1093,7 +1115,7 @@ namespace vm
         else if (klass->rank)
         {
             Class::InitLocked(klass->element_class, lock);
-            SetupVTable(klass, lock);
+            SetupVTableLocked(klass, lock);
         }
         else
         {
@@ -1102,6 +1124,9 @@ namespace vm
                 klass->methods = NULL;
                 return;
             }
+
+            if (hybridclr::metadata::IsInterpreterType(klass))
+                hybridclr::metadata::MetadataModule::EnsureTypeMethodMetadataInitializedLocked(klass);
 
             klass->methods = (const MethodInfo**)MetadataCalloc(klass->method_count, sizeof(MethodInfo*));
             MethodInfo* methods = (MethodInfo*)MetadataCalloc(klass->method_count, sizeof(MethodInfo));
@@ -1112,9 +1137,11 @@ namespace vm
             for (MethodIndex index = 0; index < end; ++index)
             {
                 Il2CppMetadataMethodInfo methodInfo = MetadataCache::GetMethodInfo(klass, index);
-
                 newMethod->name = methodInfo.name;
 
+                // Keep method-pointer resolution on the engine's canonical path.
+                // The direct interpreter shortcut moves work into the first entry
+                // call and has regressed entry P95 in entry-first measurements.
                 newMethod->methodPointer = MetadataCache::GetMethodPointer(klass->image, methodInfo.token);
 
                 if (klass->byval_arg.valuetype)
@@ -1132,7 +1159,9 @@ namespace vm
 
                 newMethod->parameters_count = (uint8_t)methodInfo.parameterCount;
 
-                const Il2CppType** parameters = (const Il2CppType**)MetadataCalloc(methodInfo.parameterCount, sizeof(Il2CppType*));
+				const Il2CppType** parameters = methodInfo.parameterCount == 0
+					? NULL
+					: (const Il2CppType**)MetadataCalloc(methodInfo.parameterCount, sizeof(Il2CppType*));
                 for (uint16_t paramIndex = 0; paramIndex < methodInfo.parameterCount; ++paramIndex)
                 {
                     Il2CppMetadataParameterInfo paramInfo = MetadataCache::GetParameterInfo(klass, methodInfo.handle, paramIndex);
@@ -1212,7 +1241,7 @@ namespace vm
         }
     }
 
-    static void SetupVTable(Il2CppClass *klass, const il2cpp::os::FastAutoLock& lock)
+    static void SetupVTableLocked(Il2CppClass *klass, const il2cpp::os::FastAutoLock& lock)
     {
         if (klass->is_vtable_initialized)
             return;
@@ -1317,6 +1346,15 @@ namespace vm
         }
 
         klass->is_vtable_initialized = 1;
+    }
+
+    void Class::SetupVTable(Il2CppClass* klass)
+    {
+        if (!klass->is_vtable_initialized)
+        {
+            il2cpp::os::FastAutoLock lock(&g_MetadataLock);
+            SetupVTableLocked(klass, lock);
+        }
     }
 
     static void SetupEventsLocked(Il2CppClass *klass, const il2cpp::os::FastAutoLock& lock)
@@ -1504,7 +1542,7 @@ namespace vm
 
         SetupMethodsLocked(klass, lock);
         SetupTypeHierarchyLocked(klass, lock);
-        SetupVTable(klass, lock);
+        SetupVTableLocked(klass, lock);
         if (!klass->size_inited)
             SetupFieldsLocked(klass, lock);
 
