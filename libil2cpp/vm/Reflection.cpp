@@ -514,6 +514,27 @@ namespace vm
         if (reader.GetCount() == 0)
             return NULL;
 
+        if (attributeClass == NULL)
+        {
+            const uint32_t attributeCount = reader.GetCount();
+            Il2CppArray* attrArray = il2cpp::vm::Array::New(il2cpp_defaults.attribute_class, attributeCount);
+            il2cpp::metadata::CustomAttributeDataIterator iter = reader.GetDataIterator();
+            for (uint32_t i = 0; i < attributeCount; i++)
+            {
+                Il2CppException* exc = NULL;
+                il2cpp::metadata::CustomAttributeCreator creator;
+                if (reader.VisitCustomAttributeData(&iter, &creator, &exc))
+                {
+                    il2cpp_array_setref(attrArray, i, creator.GetAttribute(&exc));
+                    if (exc != NULL)
+                        il2cpp::vm::Exception::Raise(exc);
+                }
+                if (exc != NULL)
+                    il2cpp::vm::Exception::Raise(exc);
+            }
+            return attrArray;
+        }
+
         auto filter = GetFilter(attributeClass);
 
         uint32_t attributeCount = reader.GetCount(filter);

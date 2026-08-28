@@ -26,6 +26,7 @@
 #include "hybridclr/metadata/MetadataUtil.h"
 #include "hybridclr/metadata/MetadataModule.h"
 #include "hybridclr/interpreter/InterpreterModule.h"
+#include "hybridclr/Il2CppCompatibleDef.h"
 
 using il2cpp::metadata::GenericMetadata;
 using il2cpp::metadata::GenericSharing;

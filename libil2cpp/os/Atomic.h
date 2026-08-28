@@ -79,6 +79,12 @@ namespace os
         }
 
         template<typename T>
+        static inline T* LoadPointerAcquire(T* const * addr)
+        {
+            return (T*)Baselib_atomic_load_ptr_acquire((const intptr_t*)addr);
+        }
+
+        template<typename T>
         static inline T* ReadPointer(T** pointer)
         {
             return (T*)Baselib_atomic_load_ptr_relaxed((intptr_t*)pointer);

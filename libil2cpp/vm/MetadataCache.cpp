@@ -13,6 +13,7 @@
 #include "metadata/GenericMethod.h"
 #include "os/Atomic.h"
 #include "os/Mutex.h"
+#include "os/FastReaderReaderWriterLock.h"
 #include "utils/CallOnce.h"
 #include "utils/Collections.h"
 #include "utils/Il2CppHashSet.h"
@@ -60,6 +61,9 @@ static Il2CppAssembly* s_AssembliesTable = NULL;
 
 typedef std::unordered_set<const Il2CppGenericInst*, il2cpp::metadata::Il2CppGenericInstHash, il2cpp::metadata::Il2CppGenericInstCompare> Il2CppGenericInstSet;
 static Il2CppGenericInstSet s_GenericInstSet;
+// GenericInst lookup is read-mostly after startup; keep construction serialized
+// by g_MetadataLock while allowing concurrent cache hits.
+static il2cpp::os::FastReaderReaderWriterLock s_GenericInstSetLock;
 
 typedef il2cpp::vm::Il2CppMethodTableMap::const_iterator Il2CppMethodTableMapIter;
 static il2cpp::vm::Il2CppMethodTableMap s_MethodTableMap;
@@ -164,10 +168,11 @@ bool il2cpp::vm::MetadataCache::Initialize()
     il2cpp::metadata::GenericMetadata::SetMaximumRuntimeGenericDepth(s_Il2CppCodeGenOptions->maximumRuntimeGenericDepth);
     il2cpp::metadata::GenericMetadata::SetGenericVirtualIterations(s_Il2CppCodeGenOptions->recursiveGenericIterations);
 
-    s_GenericInstSet.reserve(s_MetadataCache_Il2CppMetadataRegistration->genericInstsCount);
-    for (int32_t i = 0; i < s_MetadataCache_Il2CppMetadataRegistration->genericInstsCount; i++)
     {
-        s_GenericInstSet.insert(s_MetadataCache_Il2CppMetadataRegistration->genericInsts[i]);
+        il2cpp::os::FastReaderReaderWriterAutoExclusiveLock setLock(&s_GenericInstSetLock);
+        s_GenericInstSet.reserve(s_MetadataCache_Il2CppMetadataRegistration->genericInstsCount);
+        for (int32_t i = 0; i < s_MetadataCache_Il2CppMetadataRegistration->genericInstsCount; i++)
+            s_GenericInstSet.insert(s_MetadataCache_Il2CppMetadataRegistration->genericInsts[i]);
     }
 
     s_InteropData.assign_external(s_Il2CppCodeRegistration->interopData, s_Il2CppCodeRegistration->interopDataCount);
@@ -332,7 +337,10 @@ void il2cpp::vm::MetadataCache::Clear()
 
     metadata::ArrayMetadata::Clear();
 
-    s_GenericInstSet.clear();
+    {
+        il2cpp::os::FastReaderReaderWriterAutoExclusiveLock setLock(&s_GenericInstSetLock);
+        s_GenericInstSet.clear();
+    }
 
     s_Il2CppCodeRegistration = NULL;
     s_Il2CppCodeGenOptions = NULL;
@@ -450,14 +458,19 @@ const Il2CppGenericInst* il2cpp::vm::MetadataCache::GetGenericInst(const Il2CppT
     inst.type_argc = typeCount;
     inst.type_argv = (const Il2CppType**)types;
 
-    il2cpp::os::FastAutoLock lock(&g_MetadataLock);
+    {
+        il2cpp::os::FastReaderReaderWriterAutoSharedLock setLock(&s_GenericInstSetLock);
+        auto it = s_GenericInstSet.find(&inst);
+        if (it != s_GenericInstSet.end())
+            return *it;
+    }
 
-    // Check if instance was added while we were blocked on g_MetadataLock
-	auto it = s_GenericInstSet.find(&inst);
-	if (it != s_GenericInstSet.end())
-	{
-		return *it;
-	}
+    il2cpp::os::FastAutoLock metadataLock(&g_MetadataLock);
+    // Recheck after waiting for construction; another thread may have inserted it.
+    il2cpp::os::FastReaderReaderWriterAutoExclusiveLock setLock(&s_GenericInstSetLock);
+    auto it = s_GenericInstSet.find(&inst);
+    if (it != s_GenericInstSet.end())
+        return *it;
 
     Il2CppGenericInst* newInst = NULL;
     newInst  = (Il2CppGenericInst*)MetadataMalloc(sizeof(Il2CppGenericInst));

@@ -47,6 +47,7 @@
 
 #include <set>
 #include "hybridclr/metadata/MetadataUtil.h"
+#include "hybridclr/metadata/MetadataModule.h"
 #include "hybridclr/interpreter/Engine.h"
 #include "hybridclr/interpreter/Interpreter.h"
 #include "hybridclr/interpreter/InterpreterModule.h"
@@ -65,7 +66,7 @@ namespace vm
     static void SetupGCDescriptor(Il2CppClass* klass, const il2cpp::os::FastAutoLock& lock);
     static void GetBitmapNoInit(Il2CppClass* klass, size_t* bitmap, size_t& maxSetBit, size_t parentOffset, const il2cpp::os::FastAutoLock* lockPtr);
     static Il2CppClass* ResolveGenericInstanceType(Il2CppClass*, const il2cpp::vm::TypeNameParseInfo&, TypeSearchFlags searchFlags);
-    static void SetupVTable(Il2CppClass *klass, const il2cpp::os::FastAutoLock& lock);
+    static void SetupVTableLocked(Il2CppClass *klass, const il2cpp::os::FastAutoLock& lock);
     static void AddStaticFieldData(Il2CppClass* klass);
 
     Il2CppClass* Class::FromIl2CppType(const Il2CppType* type, bool throwOnError)
@@ -1068,11 +1069,19 @@ namespace vm
         }
         else
         {
+            if (hybridclr::metadata::IsInterpreterType(klass))
+                hybridclr::metadata::MetadataModule::EnsureTypeFieldMetadataInitializedLocked(klass);
             SetupFieldsFromDefinitionLocked(klass, lock);
         }
 
         if (!Class::IsGeneric(klass))
-            LayoutFieldsLocked(klass, lock);
+        {
+            bool appliedInterpreterLayout = false;
+            if (hybridclr::metadata::IsInterpreterType(klass))
+                appliedInterpreterLayout = hybridclr::metadata::MetadataModule::TryApplyClassLayoutLocked(klass);
+            if (!appliedInterpreterLayout)
+                LayoutFieldsLocked(klass, lock);
+        }
 
         // Set the init flags after a barrier so they are set after all data is written
         il2cpp::os::Atomic::FullMemoryBarrier();
@@ -1103,7 +1112,7 @@ namespace vm
         else if (klass->rank)
         {
             Class::InitLocked(klass->element_class, lock);
-            SetupVTable(klass, lock);
+            SetupVTableLocked(klass, lock);
         }
         else
         {
@@ -1112,6 +1121,9 @@ namespace vm
                 klass->methods = NULL;
                 return;
             }
+
+            if (hybridclr::metadata::IsInterpreterType(klass))
+                hybridclr::metadata::MetadataModule::EnsureTypeMethodMetadataInitializedLocked(klass);
 
             klass->methods = (const MethodInfo**)MetadataCalloc(klass->method_count, sizeof(MethodInfo*));
             MethodInfo* methods = (MethodInfo*)MetadataCalloc(klass->method_count, sizeof(MethodInfo));
@@ -1219,7 +1231,7 @@ namespace vm
         }
     }
 
-    static void SetupVTable(Il2CppClass *klass, const il2cpp::os::FastAutoLock& lock)
+    static void SetupVTableLocked(Il2CppClass *klass, const il2cpp::os::FastAutoLock& lock)
     {
         if (klass->is_vtable_initialized)
             return;
@@ -1324,6 +1336,15 @@ namespace vm
         }
 
         klass->is_vtable_initialized = 1;
+    }
+
+    void Class::SetupVTable(Il2CppClass* klass)
+    {
+        if (!klass->is_vtable_initialized)
+        {
+            il2cpp::os::FastAutoLock lock(&g_MetadataLock);
+            SetupVTableLocked(klass, lock);
+        }
     }
 
     static void SetupEventsLocked(Il2CppClass *klass, const il2cpp::os::FastAutoLock& lock)
@@ -1520,7 +1541,7 @@ namespace vm
 
         SetupMethodsLocked(klass, lock);
         SetupTypeHierarchyLocked(klass, lock);
-        SetupVTable(klass, lock);
+        SetupVTableLocked(klass, lock);
         if (!klass->size_inited)
             SetupFieldsLocked(klass, lock);
 
