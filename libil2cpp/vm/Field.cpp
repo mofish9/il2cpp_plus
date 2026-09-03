@@ -18,6 +18,7 @@
 #include "vm-utils/BlobReader.h"
 #include "Thread.h"
 
+#include "hybridclr/metadata/MetadataModule.h"
 #include "hybridclr/metadata/MetadataUtil.h"
 
 namespace il2cpp
@@ -31,7 +32,7 @@ namespace vm
 
     Il2CppClass* Field::GetParent(FieldInfo *field)
     {
-        return field->parent;
+        return hybridclr::metadata::MetadataModule::GetDheLogicalFieldParent(field);
     }
 
     int Field::GetFlags(FieldInfo *field)
@@ -51,6 +52,9 @@ namespace vm
         IL2CPP_ASSERT(obj);
 
         IL2CPP_ASSERT(!(field->type->attrs & FIELD_ATTRIBUTE_STATIC));
+		if (hybridclr::metadata::MetadataModule::TryGetDheSupplementalInstanceFieldValue(
+			obj, field, value))
+			return;
 
         src = (char*)obj + field->offset;
         SetValueRaw(field->type, value, src, true);
@@ -85,6 +89,11 @@ namespace vm
                 return value;
             }
         }
+
+		Il2CppObject* dheValue = NULL;
+		if (hybridclr::metadata::MetadataModule::TryGetDheSupplementalInstanceFieldValueObject(
+			obj, field, &dheValue))
+			return dheValue;
 
         void* fieldAddress;
         if (field->type->attrs & FIELD_ATTRIBUTE_STATIC)
@@ -131,6 +140,9 @@ namespace vm
         void *dest;
 
         IL2CPP_ASSERT(!(field->type->attrs & FIELD_ATTRIBUTE_STATIC));
+		if (hybridclr::metadata::MetadataModule::TrySetDheSupplementalInstanceFieldValue(
+			obj, field, value))
+			return;
 
         dest = (char*)obj + field->offset;
         SetValueRaw(field->type, dest, value, false);
@@ -231,6 +243,9 @@ namespace vm
     {
         IL2CPP_ASSERT(!(field->type->attrs & FIELD_ATTRIBUTE_LITERAL));
         IL2CPP_ASSERT(!field->type->valuetype);
+		if (hybridclr::metadata::MetadataModule::TrySetDheSupplementalInstanceFieldValueObject(
+			objectInstance, field, value))
+			return;
         gc::WriteBarrier::GenericStore((Il2CppObject**)(reinterpret_cast<uint8_t*>(objectInstance) + field->offset), value);
     }
 

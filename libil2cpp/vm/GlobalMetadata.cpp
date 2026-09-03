@@ -1080,6 +1080,14 @@ CustomAttributesCache* il2cpp::vm::GlobalMetadata::GenerateCustomAttributesCache
 
 Il2CppMetadataCustomAttributeHandle il2cpp::vm::GlobalMetadata::GetCustomAttributeTypeToken(const Il2CppImage* image, uint32_t token)
 {
+    const Il2CppImage* dheSourceImage = NULL;
+    uint32_t dheSourceToken = 0;
+    if (hybridclr::metadata::MetadataModule::TryGetDheCustomAttributeSource(
+        image, token, dheSourceImage, dheSourceToken))
+    {
+        image = dheSourceImage;
+        token = dheSourceToken;
+    }
     if (hybridclr::metadata::IsInterpreterImage(image))
     {
         return hybridclr::metadata::MetadataModule::GetImage(image)->GetCustomAttributeTypeToken(token);
@@ -1096,6 +1104,14 @@ Il2CppMetadataCustomAttributeHandle il2cpp::vm::GlobalMetadata::GetCustomAttribu
 
 std::tuple<void*, void*> il2cpp::vm::GlobalMetadata::GetCustomAttributeDataRange(const Il2CppImage* image, uint32_t token)
 {
+    const Il2CppImage* dheSourceImage = NULL;
+    uint32_t dheSourceToken = 0;
+    if (hybridclr::metadata::MetadataModule::TryGetDheCustomAttributeSource(
+        image, token, dheSourceImage, dheSourceToken))
+    {
+        image = dheSourceImage;
+        token = dheSourceToken;
+    }
     if (hybridclr::metadata::IsInterpreterImage(image))
     {
         return hybridclr::metadata::MetadataModule::GetImage(image)->CreateCustomAttributeDataTupleByToken(token);
@@ -1118,6 +1134,14 @@ std::tuple<void*, void*> il2cpp::vm::GlobalMetadata::GetCustomAttributeDataRange
 
 CustomAttributesCache* il2cpp::vm::GlobalMetadata::GenerateCustomAttributesCache(const Il2CppImage* image, uint32_t token)
 {
+    const Il2CppImage* dheSourceImage = NULL;
+    uint32_t dheSourceToken = 0;
+    if (hybridclr::metadata::MetadataModule::TryGetDheCustomAttributeSource(
+        image, token, dheSourceImage, dheSourceToken))
+    {
+        image = dheSourceImage;
+        token = dheSourceToken;
+    }
     return GenerateCustomAttributesCacheInternal(GetImageMetadata(image), GetCustomAttributeIndex(image, token));
 }
 
@@ -1166,6 +1190,14 @@ bool il2cpp::vm::GlobalMetadata::HasAttribute(Il2CppMetadataCustomAttributeHandl
 
 bool il2cpp::vm::GlobalMetadata::HasAttribute(const Il2CppImage* image, uint32_t token, Il2CppClass* attribute)
 {
+    const Il2CppImage* dheSourceImage = NULL;
+    uint32_t dheSourceToken = 0;
+    if (hybridclr::metadata::MetadataModule::TryGetDheCustomAttributeSource(
+        image, token, dheSourceImage, dheSourceToken))
+    {
+        image = dheSourceImage;
+        token = dheSourceToken;
+    }
     const Il2CppCustomAttributeDataRange* attributeTypeRange = (const Il2CppCustomAttributeDataRange*)GetCustomAttributeTypeToken(image, token);
     if (!attributeTypeRange)
     {

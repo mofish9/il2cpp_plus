@@ -270,6 +270,16 @@ namespace vm
         if (!iter)
             return NULL;
 
+		if (hybridclr::metadata::MetadataModule::HasDheLogicalEventView(klass))
+		{
+			if (!*iter)
+				return hybridclr::metadata::MetadataModule::GetFirstDheLogicalEvent(
+					klass, iter);
+			const EventInfo* eventInfo = NULL;
+			return hybridclr::metadata::MetadataModule::TryGetNextDheLogicalEvent(
+				klass, iter, &eventInfo) ? eventInfo : NULL;
+		}
+
         if (!*iter)
         {
             Class::SetupEvents(klass);
@@ -296,25 +306,38 @@ namespace vm
         if (!iter)
             return NULL;
 
+        if (*iter)
+        {
+            FieldInfo* supplemental = NULL;
+            if (hybridclr::metadata::MetadataModule::TryGetNextDheSupplementalField(
+                    klass, iter, &supplemental))
+                return supplemental;
+        }
+
         if (!*iter)
         {
             Class::SetupFields(klass);
             if (klass->field_count == 0)
-                return NULL;
+                return hybridclr::metadata::MetadataModule::GetFirstDheSupplementalField(
+                    klass, iter);
 
             *iter = klass->fields;
-            return klass->fields;
+			if (!hybridclr::metadata::MetadataModule::IsDheRemovedField(klass->fields))
+				return klass->fields;
         }
 
         FieldInfo* fieldAddress = (FieldInfo*)*iter;
         fieldAddress++;
-        if (fieldAddress < klass->fields + klass->field_count)
+		while (fieldAddress < klass->fields + klass->field_count)
         {
             *iter = fieldAddress;
-            return fieldAddress;
+			if (!hybridclr::metadata::MetadataModule::IsDheRemovedField(fieldAddress))
+				return fieldAddress;
+			fieldAddress++;
         }
 
-        return NULL;
+        return hybridclr::metadata::MetadataModule::GetFirstDheSupplementalField(
+            klass, iter);
     }
 
     FieldInfo* Class::GetFieldFromName(Il2CppClass *klass, const char* name)
@@ -388,25 +411,38 @@ namespace vm
         if (!iter)
             return NULL;
 
+        if (*iter)
+        {
+            const MethodInfo* supplemental = NULL;
+            if (hybridclr::metadata::MetadataModule::TryGetNextDheSupplementalMethod(
+                    klass, iter, &supplemental))
+                return supplemental;
+        }
+
         if (!*iter)
         {
             Class::SetupMethods(klass);
             if (klass->method_count == 0)
-                return NULL;
+                return hybridclr::metadata::MetadataModule::GetFirstDheSupplementalMethod(
+                    klass, iter);
 
             *iter = &klass->methods[0];
-            return klass->methods[0];
+			if (!hybridclr::metadata::MetadataModule::IsDheRemovedMethod(klass->methods[0]))
+				return klass->methods[0];
         }
 
         const MethodInfo** methodAddress = (const MethodInfo**)*iter;
         methodAddress++;
-        if (methodAddress < &klass->methods[klass->method_count])
+		while (methodAddress < &klass->methods[klass->method_count])
         {
             *iter = methodAddress;
-            return *methodAddress;
+			if (!hybridclr::metadata::MetadataModule::IsDheRemovedMethod(*methodAddress))
+				return *methodAddress;
+			methodAddress++;
         }
 
-        return NULL;
+        return hybridclr::metadata::MetadataModule::GetFirstDheSupplementalMethod(
+            klass, iter);
     }
 
     const MethodInfo* Class::GetMethodFromName(Il2CppClass *klass, const char* name, int argsCount)
@@ -491,40 +527,67 @@ namespace vm
             return NULL;
         }
 
+        if (*iter)
+        {
+            Il2CppClass* supplemental = NULL;
+            if (hybridclr::metadata::MetadataModule::TryGetNextDheSupplementalNestedType(
+                    klass, iter, &supplemental))
+                return supplemental;
+        }
+
         if (!*iter)
         {
             Class::SetupNestedTypes(klass);
             if (klass->nested_type_count == 0)
-                return NULL;
+                return hybridclr::metadata::MetadataModule::GetFirstDheSupplementalNestedType(
+                    klass, iter);
 
             *iter = &klass->nestedTypes[0];
-            return klass->nestedTypes[0];
+			if (!hybridclr::metadata::MetadataModule::IsDheRemovedType(klass->nestedTypes[0]))
+				return klass->nestedTypes[0];
         }
 
         Il2CppClass** nestedTypeAddress = (Il2CppClass**)*iter;
         nestedTypeAddress++;
-        if (nestedTypeAddress < &klass->nestedTypes[klass->nested_type_count])
+		while (nestedTypeAddress < &klass->nestedTypes[klass->nested_type_count])
         {
             *iter = nestedTypeAddress;
-            return *nestedTypeAddress;
+			if (!hybridclr::metadata::MetadataModule::IsDheRemovedType(*nestedTypeAddress))
+				return *nestedTypeAddress;
+			nestedTypeAddress++;
         }
 
-        return NULL;
+        return hybridclr::metadata::MetadataModule::GetFirstDheSupplementalNestedType(
+            klass, iter);
     }
 
     size_t Class::GetNumMethods(const Il2CppClass* klass)
     {
-        return klass->method_count;
+		return klass->method_count -
+			hybridclr::metadata::MetadataModule::GetDheRemovedMethodCount(
+				const_cast<Il2CppClass*>(klass)) +
+			hybridclr::metadata::MetadataModule::GetDheSupplementalMethodCount(
+				const_cast<Il2CppClass*>(klass));
     }
 
     size_t Class::GetNumProperties(const Il2CppClass* klass)
     {
+		if (hybridclr::metadata::MetadataModule::HasDheLogicalPropertyView(
+			const_cast<Il2CppClass*>(klass)))
+		{
+			return hybridclr::metadata::MetadataModule::GetDheLogicalPropertyCount(
+				const_cast<Il2CppClass*>(klass));
+		}
         return klass->property_count;
     }
 
     size_t Class::GetNumFields(const Il2CppClass* klass)
     {
-        return klass->field_count;
+        return klass->field_count +
+            hybridclr::metadata::MetadataModule::GetDheSupplementalFieldCount(
+				const_cast<Il2CppClass*>(klass)) -
+			hybridclr::metadata::MetadataModule::GetDheRemovedFieldCount(
+				const_cast<Il2CppClass*>(klass));
     }
 
     Il2CppClass* Class::GetParent(Il2CppClass *klass)
@@ -536,6 +599,16 @@ namespace vm
     {
         if (!iter)
             return NULL;
+
+		if (hybridclr::metadata::MetadataModule::HasDheLogicalPropertyView(klass))
+		{
+			if (!*iter)
+				return hybridclr::metadata::MetadataModule::GetFirstDheLogicalProperty(
+					klass, iter);
+			const PropertyInfo* property = NULL;
+			return hybridclr::metadata::MetadataModule::TryGetNextDheLogicalProperty(
+				klass, iter, &property) ? property : NULL;
+		}
 
         if (!*iter)
         {

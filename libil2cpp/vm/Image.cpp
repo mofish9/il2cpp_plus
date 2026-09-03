@@ -22,6 +22,7 @@
 
 #include "os/Atomic.h"
 #include "hybridclr/metadata/Image.h"
+#include "hybridclr/metadata/MetadataModule.h"
 
 struct NamespaceAndNamePairHash
 {
@@ -247,9 +248,14 @@ namespace vm
 
         Il2CppNameToTypeHandleHashTable::const_iterator iter = image->nameToClassHashTable->find(std::make_pair(namespaze, name));
         if (iter != image->nameToClassHashTable->end())
-            return MetadataCache::GetTypeInfoFromHandle(iter->second);
+		{
+			Il2CppClass* klass = MetadataCache::GetTypeInfoFromHandle(iter->second);
+			if (!hybridclr::metadata::MetadataModule::IsDheRemovedType(klass))
+				return klass;
+		}
 
-        return NULL;
+        return hybridclr::metadata::MetadataModule::FindDheSupplementalType(
+            image, namespaze, name);
     }
 
 
@@ -262,7 +268,17 @@ namespace vm
 
         Il2CppNameToTypeHandleHashTable::const_iterator iter = image->nameToClassHashTable->find(std::make_pair(namespaze, name));
         if (iter != image->nameToClassHashTable->end())
-            return iter->second;
+		{
+			Il2CppClass* klass = MetadataCache::GetTypeInfoFromHandle(iter->second);
+			if (!hybridclr::metadata::MetadataModule::IsDheRemovedType(klass))
+				return iter->second;
+		}
+
+        Il2CppClass* supplemental =
+            hybridclr::metadata::MetadataModule::FindDheSupplementalType(
+                image, namespaze, name);
+        if (supplemental)
+            return supplemental->typeMetadataHandle;
 
         return NULL;
     }
@@ -295,12 +311,26 @@ namespace vm
             {
                 continue;
             }
+			if (hybridclr::metadata::MetadataModule::IsDheRemovedType(type))
+			{
+				continue;
+			}
             if (exportedOnly && !IsExported(type))
             {
                 continue;
             }
 
             target->push_back(type);
+        }
+
+        TypeVector supplementalTypes;
+        hybridclr::metadata::MetadataModule::GetDheSupplementalTypes(image,
+            supplementalTypes);
+        for (TypeVector::const_iterator type = supplementalTypes.begin();
+            type != supplementalTypes.end(); ++type)
+        {
+            if (!exportedOnly || IsExported(*type))
+                target->push_back(*type);
         }
     }
 
@@ -359,7 +389,22 @@ namespace vm
         {
             Il2CppMetadataTypeHandle typeHandle = MetadataCache::GetAssemblyTypeHandle(image, i);
             if (ClassMatches(typeHandle, namespaze, ignoreCase, name))
-                return MetadataCache::GetTypeInfoFromHandle(typeHandle);
+			{
+				Il2CppClass* klass = MetadataCache::GetTypeInfoFromHandle(typeHandle);
+				if (!hybridclr::metadata::MetadataModule::IsDheRemovedType(klass))
+					return klass;
+			}
+        }
+
+        TypeVector supplementalTypes;
+        hybridclr::metadata::MetadataModule::GetDheSupplementalTypes(image,
+            supplementalTypes);
+        for (TypeVector::const_iterator type = supplementalTypes.begin();
+            type != supplementalTypes.end(); ++type)
+        {
+            if (!(*type)->declaringType && StringsMatch(name, (*type)->name, ignoreCase) &&
+                StringsMatch(namespaze, (*type)->namespaze, ignoreCase))
+                return const_cast<Il2CppClass*>(*type);
         }
 
         return NULL;
@@ -371,7 +416,11 @@ namespace vm
         {
             Il2CppMetadataTypeHandle typeHandle = MetadataCache::GetAssemblyExportedTypeHandle(image, i);
             if (ClassMatches(typeHandle, namespaze, ignoreCase, name))
-                return MetadataCache::GetTypeInfoFromHandle(typeHandle);
+			{
+				Il2CppClass* klass = MetadataCache::GetTypeInfoFromHandle(typeHandle);
+				if (!hybridclr::metadata::MetadataModule::IsDheRemovedType(klass))
+					return klass;
+			}
         }
 
         return NULL;
