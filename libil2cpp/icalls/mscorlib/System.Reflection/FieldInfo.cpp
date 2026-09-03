@@ -8,6 +8,7 @@
 #include "il2cpp-object-internals.h"
 #include "vm/Class.h"
 #include "vm/Exception.h"
+#include "vm/Field.h"
 #include "vm/Reflection.h"
 
 namespace il2cpp
@@ -25,14 +26,15 @@ namespace Reflection
         ::FieldInfo* fieldInfo = (::FieldInfo*)field_handle;
         Il2CppType* il2cppType = (Il2CppType*)type_handle;
 
+        Il2CppClass* logicalParent = vm::Field::GetParent(fieldInfo);
         if (il2cppType == NULL)
-            return vm::Reflection::GetFieldObject(fieldInfo->parent, fieldInfo);
+            return vm::Reflection::GetFieldObject(logicalParent, fieldInfo);
 
         Il2CppClass* originalClass = vm::Class::FromIl2CppType(il2cppType);
 
         for (Il2CppClass* k = originalClass; k; k = k->parent)
         {
-            if (k == fieldInfo->parent)
+            if (k == logicalParent)
                 return vm::Reflection::GetFieldObject(originalClass, fieldInfo);
         }
 

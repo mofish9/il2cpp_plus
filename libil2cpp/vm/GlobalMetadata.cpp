@@ -1088,6 +1088,14 @@ static CustomAttributeIndex GetCustomAttributeIndex(const Il2CppImage* image, ui
 
 Il2CppMetadataCustomAttributeHandle il2cpp::vm::GlobalMetadata::GetCustomAttributeTypeToken(const Il2CppImage* image, uint32_t token)
 {
+    const Il2CppImage* dheSourceImage = NULL;
+    uint32_t dheSourceToken = 0;
+    if (hybridclr::metadata::MetadataModule::TryGetDheCustomAttributeSource(
+        image, token, dheSourceImage, dheSourceToken))
+    {
+        image = dheSourceImage;
+        token = dheSourceToken;
+    }
     if (hybridclr::metadata::IsInterpreterImage(image))
     {
         return hybridclr::metadata::MetadataModule::GetImage(image)->GetCustomAttributeTypeToken(token);
@@ -1121,6 +1129,14 @@ static il2cpp::metadata::CustomAttributeDataReader CreateCustomAttributeDataRead
 
 il2cpp::metadata::CustomAttributeDataReader il2cpp::vm::GlobalMetadata::GetCustomAttributeDataReader(const Il2CppImage* image, uint32_t token)
 {
+    const Il2CppImage* dheSourceImage = NULL;
+    uint32_t dheSourceToken = 0;
+    if (hybridclr::metadata::MetadataModule::TryGetDheCustomAttributeSource(
+        image, token, dheSourceImage, dheSourceToken))
+    {
+        image = dheSourceImage;
+        token = dheSourceToken;
+    }
     return CreateCustomAttributeDataReader(GetCustomAttributeTypeToken(image, token), image);
 }
 

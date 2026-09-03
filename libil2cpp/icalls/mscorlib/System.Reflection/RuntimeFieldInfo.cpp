@@ -10,6 +10,8 @@
 #include "vm/Runtime.h"
 #include "vm-utils/BlobReader.h"
 
+#include "hybridclr/metadata/MetadataModule.h"
+
 namespace il2cpp
 {
 namespace icalls
@@ -90,7 +92,7 @@ namespace Reflection
     {
         Il2CppClass *parent;
 
-        parent = declaring ? field->field->parent : field->klass;
+        parent = declaring ? vm::Field::GetParent(field->field) : field->klass;
 
         return il2cpp::vm::Reflection::GetTypeObject(&parent->byval_arg);
     }
@@ -115,6 +117,9 @@ namespace Reflection
         ::FieldInfo* fieldInfo = field->field;
         Il2CppClass* fieldType = vm::Class::FromIl2CppType(fieldInfo->type);
         vm::Class::Init(fieldType);
+		if (hybridclr::metadata::MetadataModule::TrySetDheSupplementalInstanceFieldValueObject(
+			obj, fieldInfo, value))
+			return;
 
         uint8_t* fieldAddress;
 
