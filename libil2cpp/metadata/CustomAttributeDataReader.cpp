@@ -7,6 +7,7 @@
 #include "vm/Exception.h"
 #include "vm/GlobalMetadata.h"
 #include "vm/MetadataCache.h"
+#include "hybridclr/metadata/MetadataModule.h"
 
 // Custom attribute metadata format
 //
@@ -153,6 +154,7 @@ namespace metadata
         {
             MethodIndex ctorIndex = utils::Read32(ctorBuffer);
             *attributeCtor = il2cpp::vm::MetadataCache::GetMethodInfoFromMethodDefinitionIndex(image, ctorIndex);
+            *attributeCtor = hybridclr::metadata::MetadataModule::ResolveDheCustomAttributeConstructor(*attributeCtor);
             return true;
         }
 
@@ -308,9 +310,20 @@ namespace metadata
             std::tie(klass, propertyIndex) = ReadCustomAttributeNamedArgumentClassAndIndex(&iter->dataBuffer, attrClass);
 
             IL2CPP_ASSERT(iter->dataBuffer <= bufferEnd);
-            IL2CPP_ASSERT(propertyIndex < klass->property_count);
-
-            propArg.prop = &klass->properties[propertyIndex];
+            if (propertyIndex < klass->property_count)
+            {
+                propArg.prop = &klass->properties[propertyIndex];
+            }
+            else
+            {
+                propArg.prop = hybridclr::metadata::MetadataModule::GetDheCustomAttributeProperty(
+                    const_cast<Il2CppClass*>(klass), propertyIndex);
+                if (!propArg.prop)
+                {
+                    SetInvalidDataException(exc);
+                    return false;
+                }
+            }
             visitor->VisitProperty(propArg, i);
         }
 
