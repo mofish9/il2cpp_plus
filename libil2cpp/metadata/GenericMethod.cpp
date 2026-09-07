@@ -386,7 +386,9 @@ namespace metadata
             newMethod->virtualMethodPointerCallByInterp = newMethod->virtualMethodPointer;
         }
 
-        bool isAotImplByInterp = hybridclr::metadata::MetadataModule::IsImplementedByInterpreter(newMethod);
+        // Test the original lookup, not a subsequently installed unresolved-call stub.
+        bool isAotImplByInterp = hybridclr::metadata::MetadataModule::IsImplementedByInterpreter(
+            newMethod, methodPointers.methodPointer == nullptr);
         bool isAdjustorThunkMethod = IS_CLASS_VALUE_TYPE(newMethod->klass) && hybridclr::metadata::IsInstanceMethod(newMethod);
         bool needsInterpreterAotFallback = indirectCallViaInvokers
             ? !newMethod->hasFullGenericSharingAotInvoker
