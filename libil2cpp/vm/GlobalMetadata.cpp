@@ -1324,7 +1324,7 @@ Il2CppMetadataParameterInfo il2cpp::vm::GlobalMetadata::GetParameterInfo(const I
     IL2CPP_ASSERT(methodDefinition != NULL);
     IL2CPP_ASSERT(paramIndex >= 0 && paramIndex < methodDefinition->parameterCount);
 
-    const Il2CppParameterDefinition* parameterDefinition = GetParameterDefinitionFromIndex(klass, methodDefinition->parameterStart + paramIndex);
+    const Il2CppParameterDefinition* parameterDefinition = GetParameterDefinitionFromIndex(methodDefinition, methodDefinition->parameterStart + paramIndex);
 
     return {
             GetStringFromIndex(parameterDefinition->nameIndex),

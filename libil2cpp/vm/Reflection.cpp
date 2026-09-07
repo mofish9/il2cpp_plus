@@ -1,4 +1,5 @@
 #include "il2cpp-config.h"
+#include "hybridclr/metadata/MetadataModule.h"
 #include "il2cpp-class-internals.h"
 #include "il2cpp-object-internals.h"
 #include "il2cpp-tabledefs.h"
@@ -435,7 +436,7 @@ namespace vm
         if (vm::Reflection::IsAnyMethod(obj))
         {
             Il2CppReflectionMethod* method = (Il2CppReflectionMethod*)obj;
-            return std::make_tuple(vm::Method::GetToken(method->method), method->method->klass->image);
+            return std::make_tuple(vm::Method::GetToken(method->method), hybridclr::metadata::MetadataModule::GetDheMethodMetadataImage(method->method));
         }
         if (vm::Reflection::IsProperty(obj))
         {
@@ -457,13 +458,13 @@ namespace vm
         {
             Il2CppReflectionParameter* parameter = (Il2CppReflectionParameter*)obj;
             Il2CppReflectionMethod* method = (Il2CppReflectionMethod*)parameter->MemberImpl;
-            const Il2CppImage* image = method->method->klass->image;
+            const Il2CppImage* image = hybridclr::metadata::MetadataModule::GetDheMethodMetadataImage(method->method);
 #if !SUPPORT_METHOD_RETURN_TYPE_CUSTOM_ATTRIBUTE
             if (parameter->PositionImpl == -1)
-                return std::make_tuple(0x8000000, method->method->klass->image); // This is what mono returns as a fixed value.
+                return std::make_tuple(0x8000000, image); // This is what mono returns as a fixed value.
 
 #endif
-            return std::make_tuple(vm::Method::GetParameterToken(method->method, parameter->PositionImpl), method->method->klass->image);
+            return std::make_tuple(vm::Method::GetParameterToken(method->method, parameter->PositionImpl), image);
         }
         if (IsAssembly(obj))
         {
@@ -499,7 +500,7 @@ namespace vm
         if (method->method->is_inflated)
             methodWithParameterAttributeInformation = method->method->genericMethod->methodDefinition;
 
-        auto reader = il2cpp::vm::MetadataCache::GetCustomAttributeDataReader(methodWithParameterAttributeInformation->klass->image, Method::GetParameterToken(method->method, parameter->PositionImpl));
+        auto reader = il2cpp::vm::MetadataCache::GetCustomAttributeDataReader(hybridclr::metadata::MetadataModule::GetDheMethodMetadataImage(methodWithParameterAttributeInformation), Method::GetParameterToken(method->method, parameter->PositionImpl));
         return HasAttribute(reader, attributeClass);
     }
 
@@ -598,7 +599,7 @@ namespace vm
         if (il2cpp::vm::Reflection::IsAnyMethod(obj))
         {
             const MethodInfo* method = ((Il2CppReflectionMethod*)obj)->method;
-            return { method->klass->image, method->token };
+            return { hybridclr::metadata::MetadataModule::GetDheMethodMetadataImage(method), method->token };
         }
         else if (il2cpp::vm::Reflection::IsProperty(obj))
         {
@@ -619,7 +620,7 @@ namespace vm
         {
             Il2CppReflectionParameter* parameter = (Il2CppReflectionParameter*)obj;
             Il2CppReflectionMethod* method = (Il2CppReflectionMethod*)parameter->MemberImpl;
-            return { method->method->klass->image, il2cpp::vm::Method::GetParameterToken(method->method, parameter->PositionImpl) };
+            return { hybridclr::metadata::MetadataModule::GetDheMethodMetadataImage(method->method), il2cpp::vm::Method::GetParameterToken(method->method, parameter->PositionImpl) };
         }
         else if (IsAssembly(obj))
         {
@@ -732,7 +733,7 @@ namespace vm
 
     bool Reflection::HasAttribute(const MethodInfo *method, Il2CppClass *attributeClass)
     {
-        auto reader = il2cpp::vm::MetadataCache::GetCustomAttributeDataReader(method->klass->image, Method::GetToken(method));
+        auto reader = il2cpp::vm::MetadataCache::GetCustomAttributeDataReader(hybridclr::metadata::MetadataModule::GetDheMethodMetadataImage(method), Method::GetToken(method));
         return HasAttribute(reader, attributeClass);
     }
 

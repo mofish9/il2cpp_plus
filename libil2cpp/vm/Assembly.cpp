@@ -1,4 +1,5 @@
 #include "il2cpp-config.h"
+#include "hybridclr/metadata/MetadataModule.h"
 #include "vm/Assembly.h"
 #include "vm/AssemblyName.h"
 #include "vm/MetadataCache.h"
@@ -85,6 +86,8 @@ namespace vm
 
     void Assembly::GetReferencedAssemblies(const Il2CppAssembly* assembly, AssemblyNameVector* target)
     {
+        if (hybridclr::metadata::MetadataModule::TryGetDheReferencedAssemblies(assembly, *target))
+            return;
         for (int32_t sourceIndex = 0; sourceIndex < assembly->referencedAssemblyCount; sourceIndex++)
         {
             const Il2CppAssembly* refAssembly = MetadataCache::GetReferencedAssembly(assembly, sourceIndex);
