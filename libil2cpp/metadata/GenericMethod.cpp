@@ -390,7 +390,8 @@ namespace metadata
         bool isAdjustorThunkMethod = IS_CLASS_VALUE_TYPE(newMethod->klass) && hybridclr::metadata::IsInstanceMethod(newMethod);
         bool needsInterpreterAotFallback = indirectCallViaInvokers
             ? !newMethod->hasFullGenericSharingAotInvoker
-            : newMethod->methodPointer == nullptr ||
+            // An unresolved call stub is not an AOT implementation.
+            : methodPointers.methodPointer == nullptr || newMethod->methodPointer == nullptr ||
                 newMethod->methodPointer == AnUnresolvedCallStubWasNotFound ||
                 newMethod->methodPointer == (Il2CppMethodPointer)AnUnresolvedCallStubWasNotFoundValueType;
         if (isInterpMethod || (isAotImplByInterp && needsInterpreterAotFallback))
