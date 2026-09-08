@@ -350,6 +350,11 @@ namespace Reflection
         if (klass == NULL)
             return method;
 
+        const MethodInfo* dheBaseMethod;
+        if (hybridclr::dhe::TryGetVirtualBaseMethod(method2, definition, dheBaseMethod))
+            return dheBaseMethod == method2 ? method
+                : il2cpp::vm::Reflection::GetMethodObject(dheBaseMethod, dheBaseMethod->klass);
+
         if (!(method2->flags & METHOD_ATTRIBUTE_VIRTUAL) || vm::Class::IsInterface(klass) || method2->flags & METHOD_ATTRIBUTE_NEW_SLOT)
             return method;
 

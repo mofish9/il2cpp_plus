@@ -2356,10 +2356,14 @@ namespace vm
         }
         else
         {
-            IL2CPP_ASSERT(virtualMethod->slot < klass->vtable_count);
             const VirtualInvokeData* dheData;
-            vtableSlotMethod = hybridclr::dhe::TryGetVirtualInvokeData(klass, virtualMethod->slot, dheData)
-                ? dheData->method : klass->vtable[virtualMethod->slot].method;
+            if (hybridclr::dhe::TryGetVirtualInvokeData(klass, virtualMethod, dheData))
+                vtableSlotMethod = dheData->method;
+            else
+            {
+                IL2CPP_ASSERT(virtualMethod->slot < klass->vtable_count);
+                vtableSlotMethod = klass->vtable[virtualMethod->slot].method;
+            }
         }
 
         if (Method::IsGenericInstanceMethod(virtualMethod))
