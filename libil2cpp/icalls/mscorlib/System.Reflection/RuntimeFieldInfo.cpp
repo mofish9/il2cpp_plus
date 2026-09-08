@@ -94,6 +94,11 @@ namespace Reflection
 
         parent = declaring ? vm::Field::GetParent(field->field) : field->klass;
 
+        if (declaring && field->field && field->field->parent &&
+            field->field->parent->image && field->field->parent->image->assembly &&
+            hybridclr::dhe::IsDheAssembly(field->field->parent->image->assembly))
+            parent = field->klass;
+
         // A DHE sidecar field can be declared by the Current physical type
         // while the target object is an old Base value. The managed
         // RuntimeFieldInfo.GetValue/SetValue wrapper validates DeclaringType
