@@ -2,6 +2,7 @@
 
 #include "il2cpp-codegen-common.h"
 #include "il2cpp-pinvoke-support.h"
+#include "hybridclr/DheRuntime.h"
 #include "il2cpp-object-internals.h"
 #include "il2cpp-class-internals.h"
 #include "il2cpp-tabledefs.h"
