@@ -466,9 +466,29 @@ namespace System
 
         res_array.reserve(16);
 
+        // Type.GetFields is invoked on the historical Base RuntimeType while
+        // Type.GetTypeFromHandle has already exposed the Current DHE class.
+        // Resolve the reflected type through the homologous image first so
+        // FieldInfo.GetFieldFromHandle receives the same Current type handle
+        // as typeof(T) and boxed objects.
+        Il2CppReflectionType reflectedType = thisPtr->type;
+        Il2CppClass* reflectedClass = vm::Class::FromIl2CppType(thisPtr->type.type);
+        if (reflectedClass && reflectedClass->image && reflectedClass->image->assembly)
+        {
+            hybridclr::metadata::AOTHomologousImage* homologous =
+                hybridclr::metadata::AOTHomologousImage::FindImageByAssembly(
+                    reflectedClass->image->assembly);
+            if (homologous)
+            {
+                if (const Il2CppType* current = homologous->GetDheCurrentType(
+                        thisPtr->type.type))
+                    reflectedType.type = current;
+            }
+        }
+
         const char *utf8_name = reinterpret_cast<const char*>(name);
         Il2CppString* nameStr = utf8_name == NULL ? NULL : il2cpp::vm::String::New(utf8_name);
-        Il2CppArray* fields = GetFieldsByName(&thisPtr->type, nameStr, bindingAttr, &thisPtr->type);
+        Il2CppArray* fields = GetFieldsByName(&reflectedType, nameStr, bindingAttr, &reflectedType);
 
         for (unsigned int i = 0; i < il2cpp::vm::Array::GetLength(fields); i++)
         {
