@@ -4,6 +4,7 @@
 #include "il2cpp-config.h"
 #include "il2cpp-class-internals.h"
 #include "il2cpp-object-internals.h"
+#include "hybridclr/DheRuntime.h"
 
 namespace il2cpp
 {
@@ -40,6 +41,9 @@ namespace vm
         {
             const Il2CppClass* klass = obj->klass;
             IL2CPP_ASSERT(klass->initialized);
+            const VirtualInvokeData* dheData;
+            if (hybridclr::dhe::TryGetInterfaceInvokeData(klass, itf, slot, dheData))
+                return *dheData;
             IL2CPP_ASSERT(slot < itf->method_count);
 
             for (uint16_t i = 0; i < klass->interface_offsets_count; i++)
@@ -59,6 +63,9 @@ namespace vm
         static IL2CPP_FORCE_INLINE const VirtualInvokeData* GetInterfaceInvokeDataFromVTable(const Il2CppClass* klass, const Il2CppClass* itf, Il2CppMethodSlot slot)
         {
             IL2CPP_ASSERT(klass->is_vtable_initialized);
+            const VirtualInvokeData* dheData;
+            if (hybridclr::dhe::TryGetInterfaceInvokeData(klass, itf, slot, dheData))
+                return dheData;
             IL2CPP_ASSERT(slot < itf->method_count);
 
             for (uint16_t i = 0; i < klass->interface_offsets_count; i++)

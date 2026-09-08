@@ -1149,19 +1149,10 @@ namespace System
             return;
 
         vm::Class::Init(klass);
-        const VirtualInvokeData* invokeDataStart;
+        const VirtualInvokeData* invokeDataStart = NULL;
 
-        // So this part is tricky. GetInterfaceInvokeDataFromVTable takes an object pointer in order to support
-        // COM peculiarities, like being able to return invoke data for an interface only if native side implements it
-        // So here we create a fake object of the class we want to query and pass that to GetInterfaceInvokeDataFromVTable
-        // It is safe because the only fields GetInterfaceInvokeDataFromVTable accesses are the klass and identity fields
-        if (!klass->is_import_or_windows_runtime)
-        {
-            Il2CppObject fakeObject = {};
-            fakeObject.klass = klass;
-            invokeDataStart = &vm::ClassInlines::GetInterfaceInvokeDataFromVTable(&fakeObject, iklass, 0);
-        }
-        else
+        // DHE logical slots need not be a contiguous native vtable slice.
+        if (klass->is_import_or_windows_runtime)
         {
             Il2CppComObject fakeComObject;
             memset(&fakeComObject, 0, sizeof(fakeComObject));
@@ -1184,9 +1175,12 @@ namespace System
                 Il2CppReflectionMethod* member = il2cpp_method_get_object(method, iklass);
                 il2cpp_array_setref(*methods, virtualMethodIndex, member);
 
-                const MethodInfo* targetMethod = invokeDataStart[i].method;
+                const VirtualInvokeData* invokeData = klass->is_import_or_windows_runtime
+                    ? invokeDataStart + i
+                    : vm::ClassInlines::GetInterfaceInvokeDataFromVTable(klass, iklass, method->slot);
+                const MethodInfo* targetMethod = invokeData ? invokeData->method : NULL;
 
-                if (vm::Method::IsAmbiguousMethodInfo(targetMethod) || vm::Method::IsEntryPointNotFoundMethodInfo(targetMethod))
+                if (!targetMethod || vm::Method::IsAmbiguousMethodInfo(targetMethod) || vm::Method::IsEntryPointNotFoundMethodInfo(targetMethod))
                 {
                     // Method is an ambiguous default interface method (more than one DIM matched)
                     // Or there is no valid method in this slot
