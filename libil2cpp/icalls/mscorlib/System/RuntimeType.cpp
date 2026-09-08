@@ -475,6 +475,7 @@ namespace System
         void Reset(size_t initialSize)
         {
             _overflow.clear();
+            _dheRoots.clear();
             _bitCapacity = 0;
             Ensure(initialSize);
         }
@@ -488,6 +489,14 @@ namespace System
             const bool filled = (slots[word] & mask) != 0;
             slots[word] |= mask;
             return filled;
+        }
+
+        bool TestAndSetDheRoot(const MethodInfo* root)
+        {
+            if (std::find(_dheRoots.begin(), _dheRoots.end(), root) != _dheRoots.end())
+                return true;
+            _dheRoots.push_back(root);
+            return false;
         }
 
     private:
@@ -515,6 +524,7 @@ namespace System
 
         uint64_t _inlineSlots[kInlineWordCapacity];
         std::vector<uint64_t> _overflow;
+        std::vector<const MethodInfo*> _dheRoots;
         size_t _bitCapacity;
     };
 
@@ -531,7 +541,10 @@ namespace System
             {
                 if ((method->flags & METHOD_ATTRIBUTE_VIRTUAL) != 0 && filledSlots != nullptr)
                 {
-                    if (filledSlots->TestAndSet(method->slot))
+                    const MethodInfo* root;
+                    const bool filled = hybridclr::dhe::TryGetVirtualReflectionIdentity(originalType, method, root)
+                        ? filledSlots->TestAndSetDheRoot(root) : filledSlots->TestAndSet(method->slot);
+                    if (filled)
                         continue;
                 }
 
