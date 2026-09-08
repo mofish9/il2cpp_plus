@@ -389,6 +389,9 @@ inline uint16_t il2cpp_codegen_method_get_slot(const RuntimeMethod* method)
 IL2CPP_FORCE_INLINE const VirtualInvokeData& il2cpp_codegen_get_virtual_invoke_data(Il2CppMethodSlot slot, const RuntimeObject* obj)
 {
     Assert(slot != kInvalidIl2CppMethodSlot && "il2cpp_codegen_get_virtual_invoke_data got called on a non-virtual method");
+    const VirtualInvokeData* dheData;
+    if (hybridclr::dhe::TryGetVirtualInvokeData(obj->klass, slot, dheData))
+        return *dheData;
     return obj->klass->vtable[slot];
 }
 
@@ -403,7 +406,7 @@ const RuntimeMethod* il2cpp_codegen_get_generic_virtual_method_internal(const Ru
 IL2CPP_FORCE_INLINE const RuntimeMethod* il2cpp_codegen_get_generic_virtual_method(const RuntimeMethod* method, const RuntimeObject* obj)
 {
     uint16_t slot = method->slot;
-    const RuntimeMethod* methodDefinition = obj->klass->vtable[slot].method;
+    const RuntimeMethod* methodDefinition = il2cpp_codegen_get_virtual_invoke_data(slot, obj).method;
     return il2cpp_codegen_get_generic_virtual_method_internal(methodDefinition, method);
 }
 
@@ -730,7 +733,7 @@ inline const RuntimeMethod* GetVirtualMethodInfo(RuntimeObject* pThis, Il2CppMet
     if (!pThis)
         il2cpp_codegen_raise_null_reference_exception();
 
-    return pThis->klass->vtable[slot].method;
+    return il2cpp_codegen_get_virtual_invoke_data(slot, pThis).method;
 }
 
 inline const RuntimeMethod* GetInterfaceMethodInfo(RuntimeObject* pThis, Il2CppMethodSlot slot, RuntimeClass* declaringInterface)
