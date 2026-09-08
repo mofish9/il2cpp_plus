@@ -20,6 +20,7 @@
 #include "vm/Reflection.h"
 #include "vm/Type.h"
 #include "vm/GenericClass.h"
+#include "hybridclr/DheRuntime.h"
 
 
 namespace il2cpp
@@ -293,6 +294,15 @@ namespace Reflection
 
         if (methodContext->class_inst)
         {
+            if (hybridclr::dhe::IsDheAssembly(methodDefinition->klass->image->assembly))
+            {
+                // GetGenericMethodDefinition removes method arguments while
+                // retaining the declaring generic type's arguments.
+                Il2CppGenericContext definitionContext = { methodContext->class_inst, NULL };
+                const MethodInfo* closedDefinition = metadata::GenericMetadata::Inflate(methodDefinition, &definitionContext);
+                Il2CppClass* reflectedType = method->reftype ? vm::Class::FromIl2CppType(method->reftype->type) : NULL;
+                return il2cpp::vm::Reflection::GetMethodObject(closedDefinition, reflectedType);
+            }
             IL2CPP_NOT_IMPLEMENTED_ICALL(RuntimeMethodInfo::GetGenericMethodDefinition_impl);
         }
 
