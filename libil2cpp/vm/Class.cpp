@@ -48,6 +48,7 @@
 #include <set>
 #include "hybridclr/metadata/MetadataUtil.h"
 #include "hybridclr/metadata/MetadataModule.h"
+#include "hybridclr/metadata/AOTHomologousImage.h"
 #include "hybridclr/interpreter/Engine.h"
 #include "hybridclr/interpreter/Interpreter.h"
 #include "hybridclr/interpreter/InterpreterModule.h"
@@ -707,6 +708,19 @@ namespace vm
         return ClassInlines::HasParentUnsafe(klass, parent);
     }
 
+    static bool IsDheEquivalentClass(Il2CppClass* left, Il2CppClass* right)
+    {
+        if (!left || !right || !left->image || !left->image->assembly)
+            return false;
+        hybridclr::metadata::AOTHomologousImage* image =
+            hybridclr::metadata::AOTHomologousImage::FindImageByAssembly(
+                left->image->assembly);
+        if (!image)
+            return false;
+        const Il2CppType* current = image->GetDheCurrentType(&left->byval_arg);
+        return current && il2cpp::vm::Class::FromIl2CppType(current) == right;
+    }
+
     bool Class::IsAssignableFrom(Il2CppClass *klass, Il2CppClass *oklass)
     {
         // Cast to original class - fast path
@@ -729,7 +743,9 @@ namespace vm
                 {
                     // Full array covariance is defined only for reference types.
                     // For value types, array element reduced types must match
-                    return klass->castClass == oklass->castClass;
+                    return klass->castClass == oklass->castClass ||
+                        IsDheEquivalentClass(klass->castClass, oklass->castClass) ||
+                        IsDheEquivalentClass(oklass->castClass, klass->castClass);
                 }
 
                 return Class::IsAssignableFrom(klass->castClass, oklass->castClass);

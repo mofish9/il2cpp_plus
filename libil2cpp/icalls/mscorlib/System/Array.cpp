@@ -10,6 +10,7 @@
 #include "vm/Exception.h"
 #include "vm/Object.h"
 #include "vm/Type.h"
+#include "hybridclr/metadata/AOTHomologousImage.h"
 
 #include <vector>
 
@@ -21,6 +22,19 @@ namespace mscorlib
 {
 namespace System
 {
+    static bool IsDheEquivalentElementClass(Il2CppClass* left, Il2CppClass* right)
+    {
+        if (!left || !right || !left->image || !left->image->assembly)
+            return false;
+        hybridclr::metadata::AOTHomologousImage* image =
+            hybridclr::metadata::AOTHomologousImage::FindImageByAssembly(
+                left->image->assembly);
+        if (!image)
+            return false;
+        const Il2CppType* current = image->GetDheCurrentType(&left->byval_arg);
+        return current && vm::Class::FromIl2CppType(current) == right;
+    }
+
     static std::string FormatCreateInstanceException(const Il2CppType* type)
     {
         std::string typeName = vm::Type::GetName(type, IL2CPP_TYPE_NAME_FORMAT_IL);
@@ -104,6 +118,30 @@ namespace System
 
         src_class = source->klass->element_class;
         dest_class = dest->klass->element_class;
+
+        if (src_class != dest_class && vm::Class::IsValuetype(src_class) &&
+            vm::Class::IsValuetype(dest_class) &&
+            (IsDheEquivalentElementClass(src_class, dest_class) ||
+             IsDheEquivalentElementClass(dest_class, src_class)))
+        {
+            const int sourceSize = il2cpp_array_element_size(source->klass);
+            const int destSize = il2cpp_array_element_size(dest->klass);
+            const int copySize = std::min(sourceSize, destSize);
+            for (i = 0; i < length; ++i)
+            {
+                void* sourceAddress = il2cpp_array_addr_with_size(source->klass,
+                    sourceSize, source_idx + i);
+                void* destAddress = il2cpp_array_addr_with_size(dest->klass,
+                    destSize, dest_idx + i);
+                std::memmove(destAddress, sourceAddress, copySize);
+                if (destSize > copySize)
+                    std::memset(static_cast<uint8_t*>(destAddress) + copySize, 0,
+                        destSize - copySize);
+            }
+            gc::GarbageCollector::SetWriteBarrier((void**)il2cpp_array_addr_with_size(
+                dest->klass, destSize, dest_idx), static_cast<size_t>(length) * destSize);
+            return true;
+        }
 
         // object[] -> valuetype[]
         if (src_class == il2cpp_defaults.object_class && dest_class->byval_arg.valuetype)
