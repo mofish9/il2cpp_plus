@@ -67,7 +67,11 @@ namespace Reflection
         // the reflected Current type, so accept the homologous Current class
         // as an equivalent declaring owner.
         if (IsDheEquivalentDeclaringType(originalClass, logicalParent))
-            return vm::Reflection::GetFieldObject(originalClass, fieldInfo);
+            // Keep the logical Base owner on the ReflectionField. This is
+            // also the runtime type carried by old Base objects; using the
+            // Current reflected class here makes RuntimeFieldInfo.GetValue's
+            // managed target-type check reject a valid sidecar field.
+            return vm::Reflection::GetFieldObject(logicalParent, fieldInfo);
 
         return NULL;
     }
