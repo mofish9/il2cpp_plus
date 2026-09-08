@@ -94,9 +94,13 @@ namespace Reflection
 
         parent = declaring ? vm::Field::GetParent(field->field) : field->klass;
 
-        if (declaring && field->field && field->field->parent &&
-            field->field->parent->image && field->field->parent->image->assembly &&
-            hybridclr::dhe::IsDheAssembly(field->field->parent->image->assembly))
+        // The raw FieldInfo may come from the Base/fallback image even when
+        // RuntimeType.GetFields projected it onto a DHE Current reflected
+        // class. In that case the reflected class is the only handle that
+        // matches boxed Base objects after DHE type remapping.
+        if (declaring && field->klass && field->klass->image &&
+            field->klass->image->assembly &&
+            hybridclr::dhe::IsDheAssembly(field->klass->image->assembly))
             parent = field->klass;
 
         // A DHE sidecar field can be declared by the Current physical type
