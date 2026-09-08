@@ -429,9 +429,13 @@ namespace System
 			// reflected Current class for such a field creates an incompatible
 			// field/type handle in RuntimeType.GetFields. Keep the declaring owner
 			// for cross-image fields; ordinary reflection retains its old behavior.
-			Il2CppClass* reflectionClass = originalType;
-			if (fields[i]->parent && fields[i]->parent->image != originalType->image)
-				reflectionClass = fields[i]->parent;
+			// Field::GetParent exposes the logical declaring type for DHE
+			// physical aliases. Use that owner when constructing ReflectionField;
+			// the raw FieldInfo::parent may be a hidden Current class whose
+			// handle cannot be paired with the reflected Base type.
+			Il2CppClass* reflectionClass = vm::Field::GetParent(fields[i]);
+			if (!reflectionClass)
+				reflectionClass = originalType;
 			il2cpp_array_setref(result, i, vm::Reflection::GetFieldObject(reflectionClass, fields[i]));
         }
 
