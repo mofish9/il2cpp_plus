@@ -94,6 +94,17 @@ namespace Reflection
 
         parent = declaring ? vm::Field::GetParent(field->field) : field->klass;
 
+        // A DHE sidecar field can be declared by the Current physical type
+        // while the target object is an old Base value. The managed
+        // RuntimeFieldInfo.GetValue/SetValue wrapper validates DeclaringType
+        // before entering the VM; exposing the physical Current type there
+        // rejects a valid logical Base object. Use the common CLR base for
+        // sidecar compatibility while ordinary fields retain their exact
+        // declaring type.
+        if (declaring && hybridclr::metadata::MetadataModule::IsDheSupplementalInstanceField(field->field))
+            parent = parent && parent->byval_arg.valuetype
+                ? il2cpp_defaults.valuetype_class : il2cpp_defaults.object_class;
+
         return il2cpp::vm::Reflection::GetTypeObject(&parent->byval_arg);
     }
 
