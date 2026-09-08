@@ -103,7 +103,7 @@ namespace Reflection
         // declaring type.
         if (declaring && hybridclr::metadata::MetadataModule::IsDheSupplementalInstanceField(field->field))
             parent = parent && parent->byval_arg.valuetype
-                ? il2cpp_defaults.valuetype_class : il2cpp_defaults.object_class;
+                ? il2cpp_defaults.value_type_class : il2cpp_defaults.object_class;
 
         return il2cpp::vm::Reflection::GetTypeObject(&parent->byval_arg);
     }
