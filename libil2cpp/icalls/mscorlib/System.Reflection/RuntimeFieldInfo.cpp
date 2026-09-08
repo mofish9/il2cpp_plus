@@ -102,6 +102,14 @@ namespace Reflection
             hybridclr::metadata::MetadataModule::IsDheField(field->field))
             parent = field->klass;
 
+        // Value types cannot have ordinary managed inheritance. If the
+        // reflected owner differs from the logical field parent here, it is
+        // the DHE Base/Current projection for a boxed value, and the owner
+        // carried by ReflectionField is the compatible declaring handle.
+        if (declaring && field->klass && field->klass->byval_arg.valuetype &&
+            parent != field->klass)
+            parent = field->klass;
+
         // A DHE sidecar field can be declared by the Current physical type
         // while the target object is an old Base value. The managed
         // RuntimeFieldInfo.GetValue/SetValue wrapper validates DeclaringType
