@@ -424,7 +424,15 @@ namespace System
 
         for (size_t i = 0; i < fieldCount; i++)
         {
-            il2cpp_array_setref(result, i, vm::Reflection::GetFieldObject(originalType, fields[i]));
+			// A DHE type can expose Current physical fields while its inherited
+			// Base chain still contributes fields from another image. Passing the
+			// reflected Current class for such a field creates an incompatible
+			// field/type handle in RuntimeType.GetFields. Keep the declaring owner
+			// for cross-image fields; ordinary reflection retains its old behavior.
+			Il2CppClass* reflectionClass = originalType;
+			if (fields[i]->parent && fields[i]->parent->image != originalType->image)
+				reflectionClass = fields[i]->parent;
+			il2cpp_array_setref(result, i, vm::Reflection::GetFieldObject(reflectionClass, fields[i]));
         }
 
         return result;
