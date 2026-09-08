@@ -98,9 +98,8 @@ namespace Reflection
         // RuntimeType.GetFields projected it onto a DHE Current reflected
         // class. In that case the reflected class is the only handle that
         // matches boxed Base objects after DHE type remapping.
-        if (declaring && field->klass && field->klass->image &&
-            field->klass->image->assembly &&
-            hybridclr::dhe::IsDheAssembly(field->klass->image->assembly))
+        if (declaring && field->klass &&
+            hybridclr::metadata::MetadataModule::IsDheField(field->field))
             parent = field->klass;
 
         // A DHE sidecar field can be declared by the Current physical type
