@@ -142,6 +142,9 @@ void il2cpp_codegen_assert_field_size(RuntimeField* field, size_t size)
 
 void* il2cpp_codegen_get_instance_field_data_pointer(void* instance, RuntimeField* field)
 {
+    // FGS ldflda can reach this helper without a caller-side null check.
+    // Throw before adding the field offset to a null receiver.
+    NullCheck(instance);
     return il2cpp::vm::Field::GetInstanceFieldDataPointer(instance, field);
 }
 
