@@ -4,6 +4,7 @@
 #include "il2cpp-tabledefs.h"
 #include "mono-structs.h"
 #include "hybridclr/DheRuntime.h"
+#include "hybridclr/metadata/AOTHomologousImage.h"
 #include <algorithm>
 
 #include "RuntimeType.h"
