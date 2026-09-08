@@ -3,6 +3,8 @@
 #include "il2cpp-api.h"
 #include "il2cpp-tabledefs.h"
 #include "mono-structs.h"
+#include "hybridclr/DheRuntime.h"
+#include <algorithm>
 
 #include "RuntimeType.h"
 #include "RuntimeTypeHandle.h"
