@@ -957,6 +957,10 @@ namespace vm
             const MethodInfo* cctor = Class::GetCCtor(klass);
             if (cctor != NULL)
             {
+                // The canonical class owns initialization state, while a DHE
+                // execution plan may require the Current method's call frame.
+                // A cctor is always static void() so no Base value ABI is passed.
+                cctor = hybridclr::dhe::ResolveCurrentExecutionMethod(cctor);
                 vm::Runtime::Invoke(cctor, NULL, NULL, &exception);
             }
 
