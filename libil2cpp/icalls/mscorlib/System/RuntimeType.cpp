@@ -467,11 +467,10 @@ namespace System
 
         res_array.reserve(16);
 
-        // Type.GetFields is invoked on the historical Base RuntimeType while
-        // Type.GetTypeFromHandle has already exposed the Current DHE class.
-        // Resolve the reflected type through the homologous image first so
-        // FieldInfo.GetFieldFromHandle receives the same Current type handle
-        // as typeof(T) and boxed objects.
+        // Only selected physical storage can replace the Base field owner.
+        // A hidden Current metadata view also exists for method-only updates;
+        // using that view here makes GetValue/SetValue reject unchanged Base
+        // boxes even though their layout and field declarations did not change.
         Il2CppReflectionType reflectedType = thisPtr->type;
         Il2CppClass* reflectedClass = vm::Class::FromIl2CppType(thisPtr->type.type);
         if (reflectedClass && reflectedClass->image && reflectedClass->image->assembly)
@@ -481,7 +480,7 @@ namespace System
                     reflectedClass->image->assembly);
             if (homologous)
             {
-                if (const Il2CppType* current = homologous->GetDheCurrentType(
+                if (const Il2CppType* current = homologous->GetDheExecutionType(
                         thisPtr->type.type))
                     reflectedType.type = current;
             }
