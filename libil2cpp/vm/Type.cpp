@@ -1169,7 +1169,9 @@ namespace vm
 			hybridclr::metadata::AOTHomologousImage* homologous =
 				hybridclr::metadata::AOTHomologousImage::FindImageByAssembly(klass->image->assembly);
 			if (homologous)
-				if (const Il2CppType* current = homologous->GetDheCurrentType(&klass->byval_arg))
+				// typeof(T) must agree with objects using the selected physical
+				// representation. A method-only update retains the Base class.
+				if (const Il2CppType* current = homologous->GetDheExecutionType(&klass->byval_arg))
 					klass = vm::Class::FromIl2CppType(current);
 		}
 
