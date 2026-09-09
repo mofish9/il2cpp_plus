@@ -473,7 +473,11 @@ namespace System
         // boxes even though their layout and field declarations did not change.
         Il2CppReflectionType reflectedType = thisPtr->type;
         Il2CppClass* reflectedClass = vm::Class::FromIl2CppType(thisPtr->type.type);
-        if (reflectedClass && reflectedClass->image && reflectedClass->image->assembly)
+        // Prepared images may remain cached after a rejected MV transaction.
+        // Public reflection must acquire successful dispatch publication before
+        // exposing their Current physical fields.
+        if (reflectedClass && reflectedClass->image && reflectedClass->image->assembly &&
+            hybridclr::dhe::IsDheAssembly(reflectedClass->image->assembly))
         {
             hybridclr::metadata::AOTHomologousImage* homologous =
                 hybridclr::metadata::AOTHomologousImage::FindImageByAssembly(
