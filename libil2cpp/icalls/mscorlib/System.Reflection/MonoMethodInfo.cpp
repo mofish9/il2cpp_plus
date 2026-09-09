@@ -50,7 +50,7 @@ namespace Reflection
 
     Il2CppArray * MonoMethodInfo::get_parameter_info(intptr_t methodPtr, Il2CppReflectionMethod *member)
     {
-        const MethodInfo* method = hybridclr::dhe::ResolveCurrentExecutionMethod((const MethodInfo*)methodPtr);
+        MethodInfo* method = (MethodInfo*)methodPtr;
         return il2cpp::vm::Reflection::GetParamObjects(method, member->reftype ? vm::Class::FromIl2CppType(member->reftype->type) : NULL);
     }
 

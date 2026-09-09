@@ -1,5 +1,6 @@
 #include "il2cpp-config.h"
 #include "hybridclr/metadata/MetadataModule.h"
+#include "hybridclr/DheRuntime.h"
 #include "il2cpp-class-internals.h"
 #include "il2cpp-object-internals.h"
 #include "il2cpp-tabledefs.h"
@@ -348,11 +349,14 @@ namespace vm
             return value;
 
         member = GetMethodObject(method, refclass);
+        // ParameterInfo.Member retains the requested logical method identity.
+        // Only the signature uses the selected Current physical value types.
+        const MethodInfo* execution = hybridclr::dhe::ResolveCurrentExecutionMethod(method);
         res = Array::NewSpecific(s_System_Reflection_ParameterInfo_array, method->parameters_count);
         for (int i = 0; i < method->parameters_count; ++i)
         {
             Il2CppReflectionParameter* param = (Il2CppReflectionParameter*)Object::New(s_System_Reflection_ParameterInfo);
-            IL2CPP_OBJECT_SETREF(param, ClassImpl, GetTypeObject(method->parameters[i]));
+            IL2CPP_OBJECT_SETREF(param, ClassImpl, GetTypeObject(execution->parameters[i]));
             IL2CPP_OBJECT_SETREF(param, MemberImpl, (Il2CppObject*)member);
             const char* parameter_name = Method::GetParamName(method, i);
             IL2CPP_OBJECT_SETREF(param, NameImpl, parameter_name ? String::New(parameter_name) : NULL);
