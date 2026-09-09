@@ -352,22 +352,23 @@ namespace vm
         // ParameterInfo.Member retains the requested logical method identity.
         // Only the signature uses the selected Current physical value types.
         const MethodInfo* execution = hybridclr::dhe::ResolveCurrentExecutionMethod(method);
+        const MethodInfo* metadata = hybridclr::metadata::MetadataModule::GetDheCurrentMethodMetadata(method);
         res = Array::NewSpecific(s_System_Reflection_ParameterInfo_array, method->parameters_count);
         for (int i = 0; i < method->parameters_count; ++i)
         {
             Il2CppReflectionParameter* param = (Il2CppReflectionParameter*)Object::New(s_System_Reflection_ParameterInfo);
             IL2CPP_OBJECT_SETREF(param, ClassImpl, GetTypeObject(execution->parameters[i]));
             IL2CPP_OBJECT_SETREF(param, MemberImpl, (Il2CppObject*)member);
-            const char* parameter_name = Method::GetParamName(method, i);
+            const char* parameter_name = Method::GetParamName(metadata, i);
             IL2CPP_OBJECT_SETREF(param, NameImpl, parameter_name ? String::New(parameter_name) : NULL);
             param->PositionImpl = i;
-            param->AttrsImpl = method->parameters[i]->attrs;
+            param->AttrsImpl = metadata->parameters[i]->attrs;
 
             Il2CppObject* defaultValue = NULL;
             if (param->AttrsImpl & PARAM_ATTRIBUTE_HAS_DEFAULT)
             {
                 bool isExplicitySetNullDefaultValue = false;
-                defaultValue = Parameter::GetDefaultParameterValueObject(method, i, &isExplicitySetNullDefaultValue);
+                defaultValue = Parameter::GetDefaultParameterValueObject(metadata, i, &isExplicitySetNullDefaultValue);
                 if (defaultValue == NULL && !isExplicitySetNullDefaultValue)
                     defaultValue = GetObjectForMissingDefaultValue(param->AttrsImpl);
             }

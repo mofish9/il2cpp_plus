@@ -63,6 +63,7 @@
 #include "Cpp/ReentrantLock.h"
 
 #include "hybridclr/Runtime.h"
+#include "hybridclr/metadata/MetadataModule.h"
 #include "hybridclr/Il2CppCompatibleDef.h"
 
 Il2CppDefaults il2cpp_defaults;
@@ -592,8 +593,12 @@ namespace vm
         // in every invoke call as that blows up the code size.
         try
         {
-            if ((method->flags & METHOD_ATTRIBUTE_STATIC) && method->klass && !method->klass->cctor_finished_or_no_cctor)
-                ClassInit(method->klass);
+            if ((method->flags & METHOD_ATTRIBUTE_STATIC) && method->klass)
+            {
+                Il2CppClass* owner = hybridclr::metadata::MetadataModule::GetDheClassInitializationOwner(method->klass);
+                if (!owner->cctor_finished_or_no_cctor)
+                    ClassInit(owner);
+            }
 
             return InvokeWithThrow(method, obj, params);
         }
@@ -909,6 +914,7 @@ namespace vm
 // 4. Just before calling class instance constructor from a derived class instance constructor
     void Runtime::ClassInit(Il2CppClass *klass)
     {
+        klass = hybridclr::metadata::MetadataModule::GetDheClassInitializationOwner(klass);
         // Nothing to do if class has no static constructor or already ran.
         if (klass->cctor_finished_or_no_cctor)
             return;

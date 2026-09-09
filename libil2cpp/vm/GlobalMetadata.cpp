@@ -1182,9 +1182,9 @@ static const Il2CppParameterDefaultValue * GetParameterDefaultValueEntry(const M
         return NULL;
 
     ParameterIndex parameterIndex = methodDefinition->parameterStart + parameterPosition;
-    if (hybridclr::metadata::IsInterpreterMethod(method))
+    if (hybridclr::metadata::IsInterpreterMethod(methodDefinition))
     {
-        return hybridclr::metadata::MetadataModule::GetImage(method->klass)
+        return hybridclr::metadata::MetadataModule::GetImage(methodDefinition)
             ->GetParameterDefaultValueEntryByRawIndex(parameterIndex);
     }
     Il2CppParameterDefaultValue key;
@@ -1197,6 +1197,7 @@ static const Il2CppParameterDefaultValue * GetParameterDefaultValueEntry(const M
 
 const uint8_t* il2cpp::vm::GlobalMetadata::GetParameterDefaultValue(const MethodInfo* method, int32_t parameterPosition, const Il2CppType** type, bool* isExplicitySetNullDefaultValue)
 {
+    method = hybridclr::metadata::MetadataModule::GetDheCurrentMethodMetadata(method);
     *isExplicitySetNullDefaultValue = false;
     const Il2CppParameterDefaultValue* parameterDefaultValue = GetParameterDefaultValueEntry(method, parameterPosition);
 
