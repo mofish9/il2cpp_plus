@@ -6,6 +6,7 @@
 #include "vm/Class.h"
 #include "vm/Reflection.h"
 #include "vm/Exception.h"
+#include "hybridclr/DheRuntime.h"
 
 namespace il2cpp
 {
@@ -31,8 +32,9 @@ namespace Reflection
         //}
 
         IL2CPP_STRUCT_SETREF(info, parent, il2cpp::vm::Reflection::GetTypeObject(&method->klass->byval_arg));
-        if (method->return_type)
-            IL2CPP_STRUCT_SETREF(info, ret, il2cpp::vm::Reflection::GetTypeObject(method->return_type));
+        const MethodInfo* execution = hybridclr::dhe::ResolveCurrentExecutionMethod(method);
+        if (execution->return_type)
+            IL2CPP_STRUCT_SETREF(info, ret, il2cpp::vm::Reflection::GetTypeObject(execution->return_type));
         info->attrs = method->flags;
         info->implattrs = method->iflags;
         //if (sig->call_convention == MONO_CALL_DEFAULT)
@@ -48,7 +50,7 @@ namespace Reflection
 
     Il2CppArray * MonoMethodInfo::get_parameter_info(intptr_t methodPtr, Il2CppReflectionMethod *member)
     {
-        MethodInfo* method = (MethodInfo*)methodPtr;
+        const MethodInfo* method = hybridclr::dhe::ResolveCurrentExecutionMethod((const MethodInfo*)methodPtr);
         return il2cpp::vm::Reflection::GetParamObjects(method, member->reftype ? vm::Class::FromIl2CppType(member->reftype->type) : NULL);
     }
 

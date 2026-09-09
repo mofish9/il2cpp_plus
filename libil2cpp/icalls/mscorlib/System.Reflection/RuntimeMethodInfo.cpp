@@ -109,6 +109,11 @@ namespace Reflection
 
         *exc = NULL;
 
+        // Reflection owns boxed arguments and can construct a Current call
+        // frame. Select its physical signature before receiver checks, unboxing
+        // and Runtime::InvokeArray; a generated Base value ABI cannot do this.
+        m = hybridclr::dhe::ResolveCurrentExecutionMethod(m);
+
         if (!(m->flags & METHOD_ATTRIBUTE_STATIC))
         {
             if (thisPtr)
