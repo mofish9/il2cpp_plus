@@ -31,7 +31,8 @@ namespace Reflection
         {
             klass = il2cpp_class_from_il2cpp_type(type);
 
-            bool found = klass == handle->parent || il2cpp::vm::Class::HasParent(klass, handle->parent);
+            bool found = klass == handle->parent || il2cpp::vm::Class::HasParent(klass, handle->parent) ||
+                vm::Reflection::HasDheReflectedParent(klass, handle->parent);
             if (!found)
                 /* Managed code will throw an exception */
                 return NULL;

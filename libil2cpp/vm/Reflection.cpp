@@ -166,6 +166,22 @@ namespace vm
         return s_FieldMap->GetOrAdd(key, res);
     }
 
+    bool Reflection::HasDheReflectedParent(Il2CppClass* reflectedClass, Il2CppClass* declaringClass)
+    {
+        if (!reflectedClass || !declaringClass || reflectedClass->byval_arg.valuetype || declaringClass->byval_arg.valuetype)
+            return false;
+        // This validates a member/type handle pair, never an object buffer.
+        // Accessors and fields retain their separate physical receiver checks.
+        const Il2CppType* declaringType = hybridclr::metadata::MetadataModule::GetDhePublicReferenceType(&declaringClass->byval_arg);
+        Il2CppClass* logicalParent = Class::FromIl2CppType(declaringType);
+        Il2CppClass* selected = hybridclr::metadata::MetadataModule::GetDheReferenceAllocationClass(reflectedClass);
+        for (Il2CppClass* parent = selected; parent; parent = parent->parent)
+            if (parent == declaringClass || Class::FromIl2CppType(
+                    hybridclr::metadata::MetadataModule::GetDhePublicReferenceType(&parent->byval_arg)) == logicalParent)
+                return true;
+        return false;
+    }
+
     const MethodInfo* Reflection::GetMethod(const Il2CppReflectionMethod* method)
     {
         return method->method;
