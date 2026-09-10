@@ -110,6 +110,17 @@ namespace Reflection
             parent != field->klass)
             parent = field->klass;
 
+        // A selected physical Current reference field must validate its actual
+        // receiver. The logical Base parent is a different runtime class. Only
+        // project when this exact field belongs to the selected physical owner;
+        // sidecar fields and cached Base offsets do not qualify.
+        if (declaring && parent && !parent->byval_arg.valuetype)
+        {
+            Il2CppClass* current = hybridclr::metadata::MetadataModule::GetDheReferenceAllocationClass(parent);
+            if (current != parent && current == field->field->parent)
+                parent = current;
+        }
+
         // A DHE sidecar field can be declared by the Current physical type
         // while the target object is an old Base value. The managed
         // RuntimeFieldInfo.GetValue/SetValue wrapper validates DeclaringType

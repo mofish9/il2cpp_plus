@@ -38,6 +38,7 @@
 #include "utils/Environment.h"
 #include "vm-utils/Debugger.h"
 #include "vm-utils/NativeSymbol.h"
+#include "hybridclr/DheRuntime.h"
 
 #include "gc/GarbageCollector.h"
 #include "gc/GCHandle.h"
@@ -241,7 +242,9 @@ const Il2CppType* il2cpp_class_enum_basetype(Il2CppClass *klass)
 
 Il2CppClass* il2cpp_class_from_system_type(Il2CppReflectionType *type)
 {
-    return Class::FromSystemType(type);
+    // Native component consumers cache constructor/callback metadata from this
+    // class before allocation. Select the same physical reference owner here.
+    return hybridclr::dhe::ResolveReferenceAllocationClass(Class::FromSystemType(type));
 }
 
 bool il2cpp_class_is_inited(const Il2CppClass *klass)
