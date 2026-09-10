@@ -5,6 +5,7 @@
 #include "mono-structs.h"
 #include "hybridclr/DheRuntime.h"
 #include "hybridclr/metadata/AOTHomologousImage.h"
+#include "hybridclr/metadata/MetadataModule.h"
 #include <algorithm>
 
 #include "RuntimeType.h"
@@ -570,16 +571,17 @@ namespace System
         void* iter = NULL;
         while (const MethodInfo* method = vm::Class::GetMethods(type, &iter))
         {
-            if ((method->flags & METHOD_ATTRIBUTE_RT_SPECIAL_NAME) != 0 && (strcmp(method->name, ".ctor") == 0 || strcmp(method->name, ".cctor") == 0))
+            const MethodInfo* declaration = hybridclr::metadata::MetadataModule::GetDheCurrentMethodMetadata(method);
+            if ((declaration->flags & METHOD_ATTRIBUTE_RT_SPECIAL_NAME) != 0 && (strcmp(method->name, ".ctor") == 0 || strcmp(method->name, ".cctor") == 0))
                 continue;
 
-            if (CheckMemberMatch(method, type, originalType, bindingFlags, nameFilter))
+            if (CheckMemberMatch(declaration, type, originalType, bindingFlags, nameFilter))
             {
-                if ((method->flags & METHOD_ATTRIBUTE_VIRTUAL) != 0 && filledSlots != nullptr)
+                if ((declaration->flags & METHOD_ATTRIBUTE_VIRTUAL) != 0 && filledSlots != nullptr)
                 {
                     const MethodInfo* root;
-                    const bool filled = hybridclr::dhe::TryGetVirtualReflectionIdentity(originalType, method, root)
-                        ? filledSlots->TestAndSetDheRoot(root) : filledSlots->TestAndSet(method->slot);
+                    const bool filled = hybridclr::dhe::TryGetVirtualReflectionIdentity(originalType, declaration, root)
+                        ? filledSlots->TestAndSetDheRoot(root) : filledSlots->TestAndSet(declaration->slot);
                     if (filled)
                         continue;
                 }

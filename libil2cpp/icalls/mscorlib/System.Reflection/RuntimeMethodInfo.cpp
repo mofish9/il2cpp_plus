@@ -21,6 +21,7 @@
 #include "vm/Type.h"
 #include "vm/GenericClass.h"
 #include "hybridclr/DheRuntime.h"
+#include "hybridclr/metadata/MetadataModule.h"
 
 
 namespace il2cpp
@@ -355,13 +356,17 @@ namespace Reflection
         if (klass == NULL)
             return method;
 
+        const MethodInfo* declaration = hybridclr::metadata::MetadataModule::GetDheCurrentMethodMetadata(method2);
+        // Preserve the cached reflection handle while using the selected declaration.
+        // A removed implicit interface slot is now an ordinary nonvirtual method.
+        if (!(declaration->flags & METHOD_ATTRIBUTE_VIRTUAL) || vm::Class::IsInterface(klass) ||
+            (declaration->flags & METHOD_ATTRIBUTE_NEW_SLOT))
+            return method;
+
         const MethodInfo* dheBaseMethod;
         if (hybridclr::dhe::TryGetVirtualBaseMethod(method2, definition, dheBaseMethod))
             return dheBaseMethod == method2 ? method
                 : il2cpp::vm::Reflection::GetMethodObject(dheBaseMethod, dheBaseMethod->klass);
-
-        if (!(method2->flags & METHOD_ATTRIBUTE_VIRTUAL) || vm::Class::IsInterface(klass) || method2->flags & METHOD_ATTRIBUTE_NEW_SLOT)
-            return method;
 
         /*if(klass->generic_class)
         klass = klass->generic_class->container_class;*/

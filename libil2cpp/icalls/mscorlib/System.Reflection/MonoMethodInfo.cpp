@@ -7,6 +7,7 @@
 #include "vm/Reflection.h"
 #include "vm/Exception.h"
 #include "hybridclr/DheRuntime.h"
+#include "hybridclr/metadata/MetadataModule.h"
 
 namespace il2cpp
 {
@@ -35,8 +36,9 @@ namespace Reflection
         const MethodInfo* execution = hybridclr::dhe::ResolveCurrentExecutionMethod(method);
         if (execution->return_type)
             IL2CPP_STRUCT_SETREF(info, ret, il2cpp::vm::Reflection::GetTypeObject(execution->return_type));
-        info->attrs = method->flags;
-        info->implattrs = method->iflags;
+        const MethodInfo* declaration = hybridclr::metadata::MetadataModule::GetDheCurrentMethodMetadata(method);
+        info->attrs = declaration->flags;
+        info->implattrs = declaration->iflags;
         //if (sig->call_convention == MONO_CALL_DEFAULT)
         //  info->callconv = sig->sentinelpos >= 0 ? 2 : 1;
         //else {
@@ -64,7 +66,7 @@ namespace Reflection
     int32_t MonoMethodInfo::get_method_attributes(intptr_t methodPtr)
     {
         MethodInfo* method = (MethodInfo*)methodPtr;
-        return method->flags;
+        return hybridclr::metadata::MetadataModule::GetDheCurrentMethodMetadata(method)->flags;
     }
 } /* namespace Reflection */
 } /* namespace System */
