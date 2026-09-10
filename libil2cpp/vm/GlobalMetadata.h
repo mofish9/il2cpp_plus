@@ -1,5 +1,7 @@
 #pragma once
 
+#define HYBRIDCLR_DHE_HAS_CURRENT_LITERAL_VALUES 1
+
 #include <stdint.h>
 #include "Assembly.h"
 #include "MetadataCache.h"

@@ -1117,6 +1117,19 @@ static int CompareFieldDefaultValues(const void* pkey, const void* pelem)
 
 static const Il2CppFieldDefaultValue* GetFieldDefaultValueEntry(const FieldInfo* field)
 {
+    // Resolve by metadata token, never by a Base field ordinal in Current.
+    // The map is visible only after DHE publication and only for the public
+    // Base image; physical Current fields already use the interpreter path.
+    // This also covers retained reflection handles and closed generic owners.
+    const uint16_t literalFlags = FIELD_ATTRIBUTE_STATIC | FIELD_ATTRIBUTE_LITERAL | FIELD_ATTRIBUTE_HAS_DEFAULT;
+    const Il2CppImage* currentImage = nullptr;
+    uint32_t currentToken = 0;
+    if ((field->type->attrs & literalFlags) == literalFlags &&
+        hybridclr::metadata::MetadataModule::TryGetDheCustomAttributeSource(
+            field->parent->image, field->token, currentImage, currentToken))
+        return hybridclr::metadata::MetadataModule::GetImage(currentImage)
+            ->GetFieldDefaultValueEntryByRawIndex(hybridclr::metadata::DecodeTokenRowIndex(currentToken) - 1);
+
     Il2CppClass* parent = field->parent;
     FieldIndex fieldIndex = (FieldIndex)(field - parent->fields);
 
