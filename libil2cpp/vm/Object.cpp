@@ -26,6 +26,7 @@
 #include "vm/String.h"
 #include "vm/Thread.h"
 #include "vm/Type.h"
+#include "hybridclr/metadata/MetadataModule.h"
 
 #if IL2CPP_GC_BOEHM
 #define ALLOC_PTRFREE(obj, vt, size) do { (obj) = (Il2CppObject*)GC_MALLOC_ATOMIC ((size)); (obj)->klass = (vt); (obj)->monitor = NULL;} while (0)
@@ -282,6 +283,7 @@ namespace vm
 
     Il2CppObject * Object::NewAllocSpecific(Il2CppClass *klass)
     {
+        klass = hybridclr::metadata::MetadataModule::GetDheReferenceAllocationClass(klass);
         Il2CppObject *o = NULL;
 
         IL2CPP_NOT_IMPLEMENTED_NO_ASSERT(Object::NewAllocSpecific, "We really shouldn't need this initialization");
