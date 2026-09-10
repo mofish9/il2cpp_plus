@@ -1180,6 +1180,9 @@ namespace System
     void RuntimeType::GetInterfaceMapData(Il2CppReflectionType* type, Il2CppReflectionType* iface, Il2CppArray** targets, Il2CppArray** methods)
     {
         Il2CppClass* klass = il2cpp_class_from_il2cpp_type(type->type);
+        // The reflected class is a stable public identity. Interface dispatch
+        // must query the selected class, as invocation on a Current object does.
+        Il2CppClass* dispatchClass = hybridclr::dhe::ResolveReferenceAllocationClass(klass);
         Il2CppClass* iklass = il2cpp_class_from_il2cpp_type(iface->type);
 
         void* iter = NULL;
@@ -1200,15 +1203,15 @@ namespace System
         if (numberOfVirtualMethods == 0)
             return;
 
-        vm::Class::Init(klass);
+        vm::Class::Init(dispatchClass);
         const VirtualInvokeData* invokeDataStart = NULL;
 
         // DHE logical slots need not be a contiguous native vtable slice.
-        if (klass->is_import_or_windows_runtime)
+        if (dispatchClass->is_import_or_windows_runtime)
         {
             Il2CppComObject fakeComObject;
             memset(&fakeComObject, 0, sizeof(fakeComObject));
-            fakeComObject.klass = klass;
+            fakeComObject.klass = dispatchClass;
 
             // This makes GetInterfaceInvokeDataFromVTable believe that the COM object is dead,
             // thus making it skip asking native side whether a particular interface is supported
@@ -1227,9 +1230,9 @@ namespace System
                 Il2CppReflectionMethod* member = il2cpp_method_get_object(method, iklass);
                 il2cpp_array_setref(*methods, virtualMethodIndex, member);
 
-                const VirtualInvokeData* invokeData = klass->is_import_or_windows_runtime
+                const VirtualInvokeData* invokeData = dispatchClass->is_import_or_windows_runtime
                     ? invokeDataStart + i
-                    : vm::ClassInlines::GetInterfaceInvokeDataFromVTable(klass, iklass, method->slot);
+                    : vm::ClassInlines::GetInterfaceInvokeDataFromVTable(dispatchClass, iklass, method->slot);
                 const MethodInfo* targetMethod = invokeData ? invokeData->method : NULL;
 
                 if (!targetMethod || vm::Method::IsAmbiguousMethodInfo(targetMethod) || vm::Method::IsEntryPointNotFoundMethodInfo(targetMethod))
