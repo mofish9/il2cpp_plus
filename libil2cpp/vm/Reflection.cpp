@@ -67,7 +67,10 @@ typedef ReflectionMap<std::pair<const PropertyInfo*, Il2CppClass*>, Il2CppReflec
 typedef ReflectionMap<std::pair<const EventInfo*, Il2CppClass*>, Il2CppReflectionEvent*> EventMap;
 typedef ReflectionMap<std::pair<const MethodInfo*, Il2CppClass*>, Il2CppReflectionMethod*> MethodMap;
 typedef ReflectionMap<std::pair<const Il2CppImage*, Il2CppClass*>, Il2CppReflectionModule*> ModuleMap;
-typedef ReflectionMap<std::pair<const MethodInfo*, Il2CppClass*>, Il2CppArray*> ParametersMap;
+// A logical method survives DHE selection. Parameter objects are immutable
+// snapshots, so retain separate entries for its selected metadata and ABI.
+typedef std::pair<const MethodInfo*, std::pair<const MethodInfo*, Il2CppClass*> > ParameterSelection;
+typedef ReflectionMap<std::pair<const MethodInfo*, ParameterSelection>, Il2CppArray*> ParametersMap;
 
 typedef il2cpp::gc::AppendOnlyGCHashMap<const Il2CppType*, Il2CppReflectionType*, il2cpp::metadata::Il2CppTypeHash, il2cpp::metadata::Il2CppTypeEqualityComparer> TypeMap;
 
@@ -343,7 +346,19 @@ namespace vm
         // since they put everything in one cache and the MethodInfo is already used as key for GetMethodObject caching
         // However, since we have distinct maps for the different types we can use MethodInfo as the key again
 
-        ParametersMap::key_type::wrapped_type key(method, refclass);
+        const MethodInfo* execution;
+        const MethodInfo* metadata;
+        do
+        {
+            execution = hybridclr::dhe::ResolveCurrentExecutionMethod(method);
+            metadata = hybridclr::metadata::MetadataModule::GetDheCurrentMethodMetadata(method);
+            // Both lookups acquire the immutable DHE publication. Retry if
+            // registration occurred between them; never cache a mixed pair.
+        }
+        while (execution != hybridclr::dhe::ResolveCurrentExecutionMethod(method) ||
+            metadata != hybridclr::metadata::MetadataModule::GetDheCurrentMethodMetadata(method));
+        ParametersMap::key_type::wrapped_type key(method,
+            ParameterSelection(metadata, std::make_pair(execution, refclass)));
         ParametersMap::data_type value;
 
         if (s_ParametersMap->TryGetValue(key, &value))
@@ -352,8 +367,6 @@ namespace vm
         member = GetMethodObject(method, refclass);
         // ParameterInfo.Member retains the requested logical method identity.
         // Only the signature uses the selected Current physical value types.
-        const MethodInfo* execution = hybridclr::dhe::ResolveCurrentExecutionMethod(method);
-        const MethodInfo* metadata = hybridclr::metadata::MetadataModule::GetDheCurrentMethodMetadata(method);
         res = Array::NewSpecific(s_System_Reflection_ParameterInfo_array, method->parameters_count);
         for (int i = 0; i < method->parameters_count; ++i)
         {

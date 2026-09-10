@@ -20,6 +20,7 @@
 #include "vm/Array.h"
 #include "vm/Class.h"
 #include "vm/ClassInlines.h"
+#include "vm/Exception.h"
 #include "vm/Field.h"
 #include "vm/GenericClass.h"
 #include "vm/MetadataCache.h"
@@ -1184,6 +1185,10 @@ namespace System
         // must query the selected class, as invocation on a Current object does.
         Il2CppClass* dispatchClass = hybridclr::dhe::ResolveReferenceAllocationClass(klass);
         Il2CppClass* iklass = il2cpp_class_from_il2cpp_type(iface->type);
+
+        if (!vm::Class::IsInterface(iklass) ||
+            (!dispatchClass->is_import_or_windows_runtime && !vm::Class::IsAssignableFrom(iklass, dispatchClass)))
+            vm::Exception::Raise(vm::Exception::GetArgumentException("interfaceType", "Interface not found."));
 
         void* iter = NULL;
 
