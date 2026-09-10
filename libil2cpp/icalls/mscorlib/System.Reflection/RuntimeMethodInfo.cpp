@@ -132,6 +132,11 @@ namespace Reflection
 
                 m = vm::Object::GetVirtualMethod(thisPtr, m);
 
+                // Virtual lookup returns the logical Base implementation. A
+                // boxed reflection call can select Current before converting
+                // arguments, provided the actual receiver owns that storage.
+                m = hybridclr::dhe::ResolveCurrentReceiverMethod(m, thisPtr);
+
                 if (vm::Method::IsEntryPointNotFoundMethodInfo(m))
                     vm::Exception::Raise(vm::Exception::GetEntryPointNotFoundException(vm::Method::GetFullName(method->method).c_str()));
 
