@@ -276,6 +276,7 @@ namespace vm
 
     Il2CppReflectionType* Reflection::GetTypeObject(const Il2CppType *type)
     {
+        type = hybridclr::metadata::MetadataModule::GetDhePublicReferenceType(type);
         Il2CppReflectionType* object = NULL;
 
         if (s_TypeMap->TryGetValue(type, &object))

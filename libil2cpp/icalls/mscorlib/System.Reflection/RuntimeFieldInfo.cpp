@@ -152,7 +152,7 @@ namespace Reflection
 
     void RuntimeFieldInfo::SetValueInternal(Il2CppReflectionField* field, Il2CppObject* obj, Il2CppObject* value)
     {
-        ::FieldInfo* fieldInfo = field->field;
+        ::FieldInfo* fieldInfo = hybridclr::metadata::MetadataModule::ResolveDheReferenceInstanceField(obj, field->field);
         Il2CppClass* fieldType = vm::Class::FromIl2CppType(fieldInfo->type);
         vm::Class::Init(fieldType);
 		if (hybridclr::metadata::MetadataModule::TrySetDheSupplementalInstanceFieldValueObject(

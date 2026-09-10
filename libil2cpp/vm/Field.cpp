@@ -45,6 +45,7 @@ namespace vm
 
     void Field::GetValue(Il2CppObject *obj, FieldInfo *field, void *value)
     {
+        field = hybridclr::metadata::MetadataModule::ResolveDheReferenceInstanceField(obj, field);
         void *src;
 
         IL2CPP_ASSERT(obj);
@@ -65,6 +66,7 @@ namespace vm
 
     Il2CppObject* Field::GetValueObject(FieldInfo *field, Il2CppObject *obj)
     {
+        field = hybridclr::metadata::MetadataModule::ResolveDheReferenceInstanceField(obj, field);
         Il2CppClass* fieldType = Class::FromIl2CppType(field->type);
 
         if (field->type->attrs & FIELD_ATTRIBUTE_LITERAL)
@@ -130,6 +132,7 @@ namespace vm
 
     void Field::SetValue(Il2CppObject *obj, const FieldInfo *field, void *value)
     {
+        field = hybridclr::metadata::MetadataModule::ResolveDheReferenceInstanceField(obj, field);
         void *dest;
 
         IL2CPP_ASSERT(!(field->type->attrs & FIELD_ATTRIBUTE_STATIC));
@@ -218,6 +221,7 @@ namespace vm
 
     void Field::SetInstanceFieldValueObject(Il2CppObject* objectInstance, FieldInfo* field, Il2CppObject* value)
     {
+        field = hybridclr::metadata::MetadataModule::ResolveDheReferenceInstanceField(objectInstance, field);
         IL2CPP_ASSERT(!(field->type->attrs & FIELD_ATTRIBUTE_LITERAL));
         IL2CPP_ASSERT(!field->type->valuetype);
 		if (hybridclr::metadata::MetadataModule::TrySetDheSupplementalInstanceFieldValueObject(

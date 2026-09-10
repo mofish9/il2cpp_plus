@@ -13,6 +13,7 @@
 #include "vm/MetadataCache.h"
 #include "vm/GenericClass.h"
 #include "il2cpp-api.h"
+#include "hybridclr/DheRuntime.h"
 
 #define CHECK_IF_NULL(v)    \
     if ( (v) == NULL && throwOnError ) \
@@ -137,12 +138,17 @@ namespace System
     bool RuntimeTypeHandle::IsInstanceOfType(Il2CppReflectionRuntimeType* type, Il2CppObject* obj)
     {
         Il2CppClass* klass = vm::Class::FromIl2CppType(type->type.type);
-        return il2cpp::vm::Object::IsInst(obj, klass) != NULL;
+        if (il2cpp::vm::Object::IsInst(obj, klass)) return true;
+        Il2CppClass* current = hybridclr::dhe::ResolveReferenceAllocationClass(klass);
+        return current != klass && il2cpp::vm::Object::IsInst(obj, current) != NULL;
     }
 
     bool RuntimeTypeHandle::type_is_assignable_from(Il2CppReflectionType* a, Il2CppReflectionType* b)
     {
-        return vm::Class::IsAssignableFrom(a, b);
+        if (a->type->byref && !b->type->byref) return false;
+        Il2CppClass* target = hybridclr::dhe::ResolveReferenceAllocationClass(vm::Class::FromIl2CppType(a->type));
+        Il2CppClass* source = hybridclr::dhe::ResolveReferenceAllocationClass(vm::Class::FromIl2CppType(b->type));
+        return vm::Class::IsAssignableFrom(target, source);
     }
 
     int32_t RuntimeTypeHandle::GetArrayRank(Il2CppReflectionRuntimeType* type)
