@@ -137,6 +137,7 @@ namespace System
 
     bool RuntimeTypeHandle::IsInstanceOfType(Il2CppReflectionRuntimeType* type, Il2CppObject* obj)
     {
+        if (!obj) return false;
         Il2CppClass* klass = vm::Class::FromIl2CppType(type->type.type);
         if (il2cpp::vm::Object::IsInst(obj, klass)) return true;
         Il2CppClass* current = hybridclr::dhe::ResolveReferenceAllocationClass(klass);
