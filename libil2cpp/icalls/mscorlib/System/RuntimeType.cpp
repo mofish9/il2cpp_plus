@@ -251,6 +251,17 @@ namespace System
         }
     }
 
+    static Il2CppClass* GetReflectionParent(Il2CppClass* klass)
+    {
+        // Enumerate the published Current ancestry, but keep logical member
+        // owners and reflection-cache keys for retained Base declarations.
+        // Object layout, GC and ABI validation still use raw physical parents.
+        klass = hybridclr::metadata::MetadataModule::GetDheReferenceAllocationClass(klass);
+        Il2CppClass* parent = klass ? klass->parent : nullptr;
+        return parent ? vm::Class::FromIl2CppType(
+            hybridclr::metadata::MetadataModule::GetDhePublicReferenceType(&parent->byval_arg)) : nullptr;
+    }
+
     static inline bool ValidBindingFlagsForGetMember(uint32_t bindingFlags)
     {
         return (bindingFlags & BFLAGS_Static) != 0 || (bindingFlags & BFLAGS_Instance) != 0;
@@ -268,12 +279,12 @@ namespace System
         CollectTypeEvents(typeInfo, typeInfo, BFLAGS_MatchAll, events, nameFilter);
 
         Il2CppClass* const originalType = typeInfo;
-        typeInfo = vm::Class::GetParent(typeInfo);
+        typeInfo = GetReflectionParent(typeInfo);
 
         while (typeInfo != NULL)
         {
             CollectTypeEvents(typeInfo, originalType, BFLAGS_MatchAll, events, nameFilter);
-            typeInfo = vm::Class::GetParent(typeInfo);
+            typeInfo = GetReflectionParent(typeInfo);
         }
 
         int i = 0;
@@ -605,7 +616,7 @@ namespace System
         }
         std::vector<const MethodInfo*> methods;
         size_t methodCapacity = typeInfo->method_count;
-        for (Il2CppClass* parent = typeInfo->parent; parent != NULL; parent = vm::Class::GetParent(parent))
+        for (Il2CppClass* parent = GetReflectionParent(typeInfo); parent != NULL; parent = GetReflectionParent(parent))
             methodCapacity += parent->method_count;
         methods.reserve(methodCapacity);
         Il2CppClass* const originalTypeInfo = typeInfo;
@@ -614,7 +625,7 @@ namespace System
 
         if ((bindingFlags & BFLAGS_DeclaredOnly) == 0)
         {
-            for (typeInfo = vm::Class::GetParent(typeInfo); typeInfo != NULL; typeInfo = vm::Class::GetParent(typeInfo))
+            for (typeInfo = GetReflectionParent(typeInfo); typeInfo != NULL; typeInfo = GetReflectionParent(typeInfo))
             {
                 CollectTypeMethods(typeInfo, originalTypeInfo, bindingFlags, nameFilter, methods, filledSlotsPtr);
             }
@@ -776,7 +787,7 @@ namespace System
 
         if ((bindingFlags & BFLAGS_DeclaredOnly) == 0)
         {
-            for (typeInfo = typeInfo->parent; typeInfo != NULL; typeInfo = typeInfo->parent)
+            for (typeInfo = GetReflectionParent(typeInfo); typeInfo != NULL; typeInfo = GetReflectionParent(typeInfo))
             {
                 CollectTypeProperties(typeInfo, bindingFlags, nameFilter, originalTypeInfo, properties);
             }

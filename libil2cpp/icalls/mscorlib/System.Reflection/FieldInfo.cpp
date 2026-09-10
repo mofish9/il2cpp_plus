@@ -67,6 +67,19 @@ namespace Reflection
                 return vm::Reflection::GetFieldObject(originalClass, fieldInfo);
         }
 
+        // A logical reflected Base type may now inherit a Current-only parent.
+        // Validate the handle against the published physical hierarchy as well,
+        // retaining the caller's reflected identity. Field reads/writes still
+        // validate the actual object separately; this does not migrate objects.
+        Il2CppClass* selectedClass = hybridclr::metadata::MetadataModule::GetDheReferenceAllocationClass(originalClass);
+        if (selectedClass != originalClass)
+        {
+            for (Il2CppClass* k = selectedClass; k; k = k->parent)
+                if (k == fieldInfo->parent || k == logicalParent ||
+                    vm::Class::FromIl2CppType(hybridclr::metadata::MetadataModule::GetDhePublicReferenceType(&k->byval_arg)) == logicalParent)
+                    return vm::Reflection::GetFieldObject(originalClass, fieldInfo);
+        }
+
         // DHE may expose a physical Current field while its logical declaring
         // type remains the Base class. The managed handle API still supplies
         // the reflected Current type, so accept the homologous Current class
