@@ -274,6 +274,12 @@ bool il2cpp_class_is_subclass_of(Il2CppClass *klass, Il2CppClass *klassc, bool c
 
 bool il2cpp_class_has_parent(Il2CppClass *klass, Il2CppClass *klassc)
 {
+    // Unity can cache a Base script descriptor before DHE selects Current
+    // storage. This API queries the selected type relationship, not an
+    // object's physical receiver layout; internal Class::HasParent and field
+    // validation must remain strict for existing allocations.
+    klass = hybridclr::dhe::ResolveReferenceAllocationClass(klass);
+    klassc = hybridclr::dhe::ResolveReferenceAllocationClass(klassc);
     return Class::HasParent(klass, klassc);
 }
 
