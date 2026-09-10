@@ -593,6 +593,7 @@ namespace vm
         // in every invoke call as that blows up the code size.
         try
         {
+            method = hybridclr::dhe::ResolveNativeReferenceInvokeMethod(method, obj);
             if ((method->flags & METHOD_ATTRIBUTE_STATIC) && method->klass)
             {
                 Il2CppClass* owner = hybridclr::metadata::MetadataModule::GetDheClassInitializationOwner(method->klass);
