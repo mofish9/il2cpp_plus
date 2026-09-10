@@ -70,6 +70,11 @@ namespace System
         if (childType == baseType)
             return false;
 
+        childClass = hybridclr::dhe::ResolveReferenceAllocationClass(childClass);
+        baseClass = hybridclr::dhe::ResolveReferenceAllocationClass(baseClass);
+        if (childClass == baseClass)
+            return false;
+
         if (is_generic_parameter(childType))
         {
             /* slow path: walk the type hierarchy looking at base types
@@ -81,6 +86,7 @@ namespace System
             result = false;
             while (c != NULL)
             {
+                c = hybridclr::dhe::ResolveReferenceAllocationClass(c);
                 if (c == baseClass)
                 {
                     result = true;
@@ -213,6 +219,7 @@ namespace System
     Il2CppReflectionRuntimeType* RuntimeTypeHandle::GetBaseType(Il2CppReflectionRuntimeType* type)
     {
         Il2CppClass* klass = vm::Class::FromIl2CppType((&type->type)->type);
+        klass = hybridclr::dhe::ResolveReferenceAllocationClass(klass);
 
         Il2CppReflectionType* retVal = klass->parent ? il2cpp::vm::Reflection::GetTypeObject(&klass->parent->byval_arg) : NULL;
         return reinterpret_cast<Il2CppReflectionRuntimeType*>(retVal);

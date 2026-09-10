@@ -264,6 +264,8 @@ bool il2cpp_class_is_inflated(const Il2CppClass *klass)
 
 bool il2cpp_class_is_assignable_from(Il2CppClass *klass, Il2CppClass *oklass)
 {
+    klass = hybridclr::dhe::ResolveReferenceAllocationClass(klass);
+    oklass = hybridclr::dhe::ResolveReferenceAllocationClass(oklass);
     return Class::IsAssignableFrom(klass, oklass);
 }
 
@@ -320,6 +322,9 @@ Il2CppClass* il2cpp_class_get_nested_types(Il2CppClass *klass, void* *iter)
 
 Il2CppClass* il2cpp_class_get_interfaces(Il2CppClass *klass, void* *iter)
 {
+    if (!iter) return NULL;
+    Il2CppClass* selected = hybridclr::dhe::ResolveReferenceAllocationClass(klass);
+    klass = hybridclr::dhe::SelectReferenceInterfaceIterationClass(klass, selected, *iter);
     return Class::GetInterfaces(klass, iter);
 }
 
@@ -360,6 +365,7 @@ const char* il2cpp_class_get_namespace(Il2CppClass *klass)
 
 Il2CppClass* il2cpp_class_get_parent(Il2CppClass *klass)
 {
+    klass = hybridclr::dhe::ResolveReferenceAllocationClass(klass);
     return Class::GetParent(klass);
 }
 

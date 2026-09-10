@@ -1057,6 +1057,7 @@ namespace System
         Il2CppClass* currentType = klass;
         while (currentType != NULL)
         {
+            currentType = hybridclr::dhe::ResolveReferenceAllocationClass(currentType);
             void* iter = NULL;
             while (Il2CppClass* itf = vm::Class::GetInterfaces(currentType, &iter))
                 itfs.insert(itf);
