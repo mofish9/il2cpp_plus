@@ -269,6 +269,11 @@ bool il2cpp_class_is_assignable_from(Il2CppClass *klass, Il2CppClass *oklass)
 
 bool il2cpp_class_is_subclass_of(Il2CppClass *klass, Il2CppClass *klassc, bool check_interfaces)
 {
+    // Native serializers can retain the Base script descriptor. Discover
+    // interfaces on the selected reference declaration; this is a type query,
+    // not permission to invoke Current code on an old physical object.
+    klass = hybridclr::dhe::ResolveReferenceAllocationClass(klass);
+    klassc = hybridclr::dhe::ResolveReferenceAllocationClass(klassc);
     return Class::IsSubclassOf(klass, klassc, check_interfaces);
 }
 
