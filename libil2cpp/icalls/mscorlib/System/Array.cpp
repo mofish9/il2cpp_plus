@@ -64,8 +64,10 @@ namespace System
 
         int32_t boundsCount = bounds != NULL ? il2cpp::vm::Array::GetLength(bounds) : 0;
 
+        Il2CppClass* physicalElement = hybridclr::dhe::ResolveReferenceAllocationClass(
+            il2cpp::vm::Class::FromIl2CppType(elementType->type));
         Il2CppClass* arrayType = il2cpp::vm::Class::GetBoundedArrayClass(
-            il2cpp::vm::Class::FromIl2CppType(elementType->type),
+            physicalElement,
             il2cpp::vm::Array::GetLength(lengths),
             boundsCount > 2 || (boundsCount == 1 && i32bounds[0] != 0)
         );

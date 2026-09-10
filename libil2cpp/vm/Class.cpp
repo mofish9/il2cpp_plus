@@ -770,7 +770,20 @@ namespace vm
                     return true;
             }
 
-            return ClassInlines::HasParentUnsafe(oklass, klass);
+            if (ClassInlines::HasParentUnsafe(oklass, klass)) return true;
+            // A Current reference can satisfy a cached public Base query.
+            // The reverse direction stays strict: an old allocation cannot
+            // become a Current receiver for direct interpreter field offsets.
+            if (!klass->byval_arg.valuetype && !oklass->byval_arg.valuetype)
+            {
+                Il2CppClass* current = hybridclr::dhe::ResolveReferenceAllocationClass(klass);
+                if (current != klass)
+                {
+                    Class::Init(current);
+                    return ClassInlines::HasParentUnsafe(oklass, current);
+                }
+            }
+            return false;
         }
 
         if (klass->generic_class != NULL)

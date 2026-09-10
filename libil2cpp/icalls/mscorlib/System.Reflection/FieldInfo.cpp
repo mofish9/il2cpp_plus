@@ -11,6 +11,7 @@
 #include "vm/Field.h"
 #include "vm/Reflection.h"
 #include "hybridclr/metadata/AOTHomologousImage.h"
+#include "hybridclr/metadata/MetadataModule.h"
 
 namespace il2cpp
 {
@@ -59,6 +60,10 @@ namespace Reflection
         for (Il2CppClass* k = originalClass; k; k = k->parent)
         {
             if (k == logicalParent)
+                return vm::Reflection::GetFieldObject(originalClass, fieldInfo);
+            if (!k->byval_arg.valuetype && !logicalParent->byval_arg.valuetype &&
+                vm::Class::FromIl2CppType(hybridclr::metadata::MetadataModule::GetDhePublicReferenceType(&k->byval_arg)) ==
+                vm::Class::FromIl2CppType(hybridclr::metadata::MetadataModule::GetDhePublicReferenceType(&logicalParent->byval_arg)))
                 return vm::Reflection::GetFieldObject(originalClass, fieldInfo);
         }
 
