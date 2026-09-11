@@ -453,7 +453,10 @@ bool il2cpp_class_is_enum(const Il2CppClass *klass)
 
 const Il2CppImage* il2cpp_class_get_image(Il2CppClass* klass)
 {
-    return Class::GetImage(klass);
+    // Unity indexes serialization support by the registered assembly image.
+    // Current classes keep their own metadata image internally; only this
+    // public ownership query follows their already-published assembly identity.
+    return hybridclr::dhe::ResolvePublicAssemblyImage(Class::GetImage(klass));
 }
 
 const char *il2cpp_class_get_assemblyname(const Il2CppClass *klass)
