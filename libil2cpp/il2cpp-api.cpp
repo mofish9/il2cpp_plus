@@ -292,17 +292,19 @@ bool il2cpp_class_has_parent(Il2CppClass *klass, Il2CppClass *klassc)
 
 Il2CppClass* il2cpp_class_from_il2cpp_type(const Il2CppType* type)
 {
-    return Class::FromIl2CppType(type);
+    // Native serialization traverses field types as well as System.Type.
+    // Keep its cached class metadata consistent with new reference allocations.
+    return hybridclr::dhe::ResolveReferenceAllocationClass(Class::FromIl2CppType(type));
 }
 
 Il2CppClass* il2cpp_class_from_name(const Il2CppImage* image, const char* namespaze, const char *name)
 {
-    return Class::FromName(image, namespaze, name);
+    return hybridclr::dhe::ResolveReferenceAllocationClass(Class::FromName(image, namespaze, name));
 }
 
 Il2CppClass* il2cpp_class_get_element_class(Il2CppClass *klass)
 {
-    return Class::GetElementClass(klass);
+    return hybridclr::dhe::ResolveReferenceAllocationClass(Class::GetElementClass(klass));
 }
 
 const EventInfo* il2cpp_class_get_events(Il2CppClass *klass, void* *iter)
@@ -1318,7 +1320,7 @@ int il2cpp_type_get_type(const Il2CppType *type)
 
 Il2CppClass* il2cpp_type_get_class_or_element_class(const Il2CppType *type)
 {
-    return Type::GetClassOrElementClass(type);
+    return hybridclr::dhe::ResolveReferenceAllocationClass(Type::GetClassOrElementClass(type));
 }
 
 char* il2cpp_type_get_name(const Il2CppType *type)
