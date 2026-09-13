@@ -63,6 +63,10 @@
 #include "Cpp/ReentrantLock.h"
 
 #include "hybridclr/Runtime.h"
+#include "hybridclr/DheRuntime.h"
+#if !defined(HYBRIDCLR_DHE_HAS_PHYSICAL_RECEIVER_DISPATCH) || HYBRIDCLR_DHE_HAS_PHYSICAL_RECEIVER_DISPATCH != 1
+#error Unity 2022 DHE requires the matching physical receiver dispatch runtime.
+#endif
 #include "hybridclr/metadata/MetadataModule.h"
 #include "hybridclr/Il2CppCompatibleDef.h"
 
