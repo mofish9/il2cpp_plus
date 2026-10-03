@@ -124,7 +124,13 @@ namespace Reflection
                 //  return NULL;
                 //}
 
-                if (!vm::Object::IsInst(thisPtr, m->klass))
+                // A Current value method can retain a fallback declaration
+                // owner. Validate the physical box before logical type checks
+                // or unboxing; an old box must not inherit Current storage.
+                bool compatibleReceiver = m->klass->byval_arg.valuetype
+                    ? thisPtr->klass == hybridclr::metadata::MetadataModule::GetDheExecutionClass(m->klass)
+                    : vm::Object::IsInst(thisPtr, m->klass) != NULL;
+                if (!compatibleReceiver)
                 {
                     gc::WriteBarrier::GenericStore(exc, vm::Exception::FromNameMsg(il2cpp_defaults.corlib, "System.Reflection", "TargetException", "Object does not match target type."));
                     return NULL;
