@@ -1418,12 +1418,12 @@ const MethodInfo* il2cpp_image_get_entry_point(const Il2CppImage *image)
 
 size_t il2cpp_image_get_class_count(const Il2CppImage * image)
 {
-    return Image::GetNumTypes(image);
+    return Image::GetPublicTypeCount(image);
 }
 
 const Il2CppClass* il2cpp_image_get_class(const Il2CppImage * image, size_t index)
 {
-    return Image::GetType(image, static_cast<AssemblyTypeIndex>(index));
+    return Image::GetPublicType(image, index);
 }
 
 Il2CppManagedMemorySnapshot* il2cpp_capture_memory_snapshot()

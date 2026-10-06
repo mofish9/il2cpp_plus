@@ -8,6 +8,7 @@
 #include "vm/Class.h"
 #include "vm/Image.h"
 #include "vm/MetadataCache.h"
+#include "vm/MetadataLock.h"
 #include "vm/Reflection.h"
 #include "vm/StackTrace.h"
 #include "vm/Type.h"
@@ -23,6 +24,7 @@
 #include "os/Atomic.h"
 #include "hybridclr/metadata/Image.h"
 #include "hybridclr/metadata/MetadataModule.h"
+#include "hybridclr/DheRuntime.h"
 
 struct NamespaceAndNamePairHash
 {
@@ -353,6 +355,50 @@ namespace vm
     uint32_t Image::GetNumTypes(const Il2CppImage* image)
     {
         return image->typeCount;
+    }
+
+    // Internal GetNumTypes/GetType retain their physical metadata indices.
+    // Only the public native enumeration uses the completed DHE logical view.
+    static std::map<const Il2CppAssembly*, TypeVector> s_PublishedDheTypes;
+    static const TypeVector* GetPublishedDheTypes(const Il2CppImage* image)
+    {
+        if (hybridclr::metadata::IsInterpreterImage(image) ||
+            !hybridclr::dhe::IsDheAssembly(image->assembly))
+            return nullptr;
+
+        // IsDheAssembly acquires publication; an assembly cannot be registered
+        // again. Never cache an empty placeholder or a pre-publication Base.
+        // Canonical images and Unity's stable aliases share the same entry.
+        os::FastAutoLock lock(&g_MetadataLock);
+        auto found = s_PublishedDheTypes.find(image->assembly);
+        if (found != s_PublishedDheTypes.end()) return &found->second;
+
+        const Il2CppImage* canonical = image->assembly->image;
+        TypeVector types;
+        types.reserve(canonical->typeCount);
+        for (uint32_t index = 0; index < canonical->typeCount; ++index)
+        {
+            const Il2CppClass* type = Image::GetType(canonical, index);
+            if (!hybridclr::metadata::MetadataModule::IsDheRemovedType(type))
+                types.push_back(type); // Preserve the native API's <Module> entry.
+        }
+        hybridclr::metadata::MetadataModule::GetDheSupplementalTypes(canonical, types);
+        // Publish only a complete vector. Map nodes and their immutable vectors
+        // remain stable after unlocking, including when other assemblies load.
+        return &s_PublishedDheTypes.emplace(image->assembly, std::move(types)).first->second;
+    }
+
+    size_t Image::GetPublicTypeCount(const Il2CppImage* image)
+    {
+        const TypeVector* types = GetPublishedDheTypes(image);
+        return types ? types->size() : GetNumTypes(image);
+    }
+
+    const Il2CppClass* Image::GetPublicType(const Il2CppImage* image, size_t index)
+    {
+        if (const TypeVector* types = GetPublishedDheTypes(image))
+            return index < types->size() ? (*types)[index] : nullptr;
+        return index < GetNumTypes(image) ? GetType(image, static_cast<AssemblyTypeIndex>(index)) : nullptr;
     }
 
     const Il2CppClass* Image::GetType(const Il2CppImage* image, AssemblyTypeIndex index)
