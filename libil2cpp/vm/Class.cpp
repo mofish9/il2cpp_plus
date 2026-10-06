@@ -710,15 +710,7 @@ namespace vm
 
     static bool IsDheEquivalentClass(Il2CppClass* left, Il2CppClass* right)
     {
-        if (!left || !right || !left->image || !left->image->assembly)
-            return false;
-        hybridclr::metadata::AOTHomologousImage* image =
-            hybridclr::metadata::AOTHomologousImage::FindImageByAssembly(
-                left->image->assembly);
-        if (!image)
-            return false;
-        const Il2CppType* current = image->GetDheCurrentType(&left->byval_arg);
-        return current && il2cpp::vm::Class::FromIl2CppType(current) == right;
+        return hybridclr::metadata::MetadataModule::IsDheEquivalentClass(left, right);
     }
 
     bool Class::IsAssignableFrom(Il2CppClass *klass, Il2CppClass *oklass)

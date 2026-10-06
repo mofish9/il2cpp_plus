@@ -1654,9 +1654,20 @@ Il2CppClass* il2cpp::vm::GlobalMetadata::FromTypeDefinition(TypeDefinitionIndex 
         typeDefinition = typeDefinitions + index;
         typeDefinitionSizes = s_Il2CppMetadataRegistration->typeDefinitionsSizes[index];
     }
+    const Il2CppImage* definitionImage = GetImageForTypeDefinitionIndex(index);
+#if HYBRIDCLR_ENABLE_AOT_SELECTION
+    // This runs only on first class construction, under g_MetadataLock. Hidden
+    // Base classes must never be cached by generated AOT indices before choice
+    // or in traditional mode; a build validator rejects normal static callers.
+    if (!hybridclr::metadata::IsInterpreterIndex(index) &&
+        hybridclr::startup::IsDeferredAssembly(definitionImage->nameNoExt) &&
+        hybridclr::startup::GetMode() != 1)
+        il2cpp::vm::Exception::Raise(il2cpp::vm::Exception::GetInvalidOperationException(
+            "AOT access to a deferred Base hotfix type requires DHE mode."));
+#endif
     Il2CppClass* typeInfo = (Il2CppClass*)IL2CPP_CALLOC(1, sizeof(Il2CppClass) + (sizeof(VirtualInvokeData) * typeDefinition->vtable_count));
     typeInfo->klass = typeInfo;
-    typeInfo->image = GetImageForTypeDefinitionIndex(index);
+    typeInfo->image = definitionImage;
     typeInfo->name = il2cpp::vm::GlobalMetadata::GetStringFromIndex(typeDefinition->nameIndex);
     typeInfo->namespaze = il2cpp::vm::GlobalMetadata::GetStringFromIndex(typeDefinition->namespaceIndex);
     typeInfo->byval_arg = *il2cpp::vm::GlobalMetadata::GetIl2CppTypeFromIndex(typeDefinition->byvalTypeIndex);

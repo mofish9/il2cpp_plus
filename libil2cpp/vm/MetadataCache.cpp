@@ -116,31 +116,35 @@ struct PairToKeyConverter
 typedef il2cpp::utils::collections::ArrayValueMap<const Il2CppGuid*, std::pair<const Il2CppGuid*, Il2CppClass*>, PairToKeyConverter<const Il2CppGuid*, Il2CppClass*> > GuidToClassMap;
 static GuidToClassMap s_GuidToNonImportClassMap;
 
-#include <atomic>
 static il2cpp::utils::dynamic_array<Il2CppAssembly*> s_cliAssemblies;
-// This research fixture intentionally delays ONLY publication/name resolution.
-// Generated type indices remain intact so the test can detect hidden references.
-static std::atomic<int32_t> s_LabAotSelection{0};
-static const Il2CppAssembly* s_LabDormantAssembly = nullptr;
-static bool IsLabDeferredAssembly(const Il2CppAssembly* assembly)
-{
-    return std::strcmp(assembly->aname.name, "StartupHotfix") == 0;
-}
+#if HYBRIDCLR_ENABLE_AOT_SELECTION
+static std::vector<const Il2CppAssembly*> s_deferredAssemblies;
+#endif
 
-int32_t il2cpp::vm::MetadataCache::SelectLabAotMode(int32_t mode)
+int32_t il2cpp::vm::MetadataCache::SelectExecutionMode(int32_t mode)
 {
     if (mode != 1 && mode != 2) return 2;
+#if HYBRIDCLR_ENABLE_AOT_SELECTION
     il2cpp::os::FastAutoLock lock(&il2cpp::vm::g_MetadataLock);
-    if (s_LabAotSelection.load(std::memory_order_acquire) != 0) return 1;
-    if (!s_LabDormantAssembly) return 3;
-    if (mode == 1) il2cpp::vm::Assembly::Register(s_LabDormantAssembly);
-    s_LabAotSelection.store(mode, std::memory_order_release);
-    return 0;
+    if (hybridclr::startup::GetMode()) return 1;
+    if (s_deferredAssemblies.empty()) return 3;
+    if (mode == 1)
+        for (const Il2CppAssembly* assembly : s_deferredAssemblies)
+            il2cpp::vm::Assembly::Register(assembly);
+    // Hooks and mode share a single release publication after registration.
+    return hybridclr::startup::BindMode(mode);
+#else
+    return 3;
+#endif
 }
 
-int32_t il2cpp::vm::MetadataCache::GetLabAotMode()
+int32_t il2cpp::vm::MetadataCache::GetExecutionMode()
 {
-    return s_LabAotSelection.load(std::memory_order_acquire);
+#if HYBRIDCLR_ENABLE_AOT_SELECTION
+    return hybridclr::startup::GetMode();
+#else
+    return 1;
+#endif
 }
 
 void il2cpp::vm::MetadataCache::Register(const Il2CppCodeRegistration* const codeRegistration, const Il2CppMetadataRegistration* const metadataRegistration, const Il2CppCodeGenOptions* const codeGenOptions)
@@ -243,8 +247,12 @@ bool il2cpp::vm::MetadataCache::Initialize()
 
         assembly->image = il2cpp::vm::MetadataCache::GetImageFromIndex(assemblyImageIndex);
 
-        if (IsLabDeferredAssembly(assembly)) s_LabDormantAssembly = assembly;
-        else Assembly::Register(assembly);
+#if HYBRIDCLR_ENABLE_AOT_SELECTION
+        if (hybridclr::startup::IsDeferredAssembly(assembly->aname.name))
+            s_deferredAssemblies.push_back(assembly);
+        else
+#endif
+            Assembly::Register(assembly);
     }
 
     InitializeUnresolvedSignatureTable();
@@ -1020,8 +1028,10 @@ const Il2CppAssembly* il2cpp::vm::MetadataCache::GetAssemblyByName(const char* n
     for (int i = 0; i < s_AssembliesCount; i++)
     {
         const Il2CppAssembly* assembly = s_AssembliesTable + i;
-        if (IsLabDeferredAssembly(assembly) && s_LabAotSelection.load(std::memory_order_acquire) != 1)
+#if HYBRIDCLR_ENABLE_AOT_SELECTION
+        if (hybridclr::startup::IsDeferredAssembly(assembly->aname.name) && hybridclr::startup::GetMode() != 1)
             continue;
+#endif
 
         if (comparer(assembly->aname.name, assemblyName) || comparer(assembly->image->name, assemblyName))
             return assembly;
@@ -1031,7 +1041,9 @@ const Il2CppAssembly* il2cpp::vm::MetadataCache::GetAssemblyByName(const char* n
 
     for (auto assembly : s_cliAssemblies)
     {
-        if (IsLabDeferredAssembly(assembly) && !assembly->token) continue;
+#if HYBRIDCLR_ENABLE_AOT_SELECTION
+        if (hybridclr::startup::IsDeferredAssembly(assembly->aname.name) && !assembly->token) continue;
+#endif
         if (comparer(assembly->aname.name, assemblyName) || comparer(assembly->image->name, assemblyName))
             return assembly;
     }
