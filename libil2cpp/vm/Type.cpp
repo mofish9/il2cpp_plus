@@ -29,6 +29,7 @@
 
 #include "hybridclr/metadata/MetadataUtil.h"
 #include "hybridclr/metadata/AOTHomologousImage.h"
+#include "hybridclr/metadata/MetadataModule.h"
 
 static char* copy_name(const char* name)
 {
@@ -1164,16 +1165,7 @@ namespace vm
     {
         const Il2CppType* type = (const Il2CppType*)handle;
         Il2CppClass *klass = vm::Class::FromIl2CppType(type);
-		if (klass && klass->image && klass->image->assembly)
-		{
-			hybridclr::metadata::AOTHomologousImage* homologous =
-				hybridclr::metadata::AOTHomologousImage::FindImageByAssembly(klass->image->assembly);
-			if (homologous)
-				// typeof(T) must agree with objects using the selected physical
-				// representation. A method-only update retains the Base class.
-				if (const Il2CppType* current = homologous->GetDheExecutionType(&klass->byval_arg))
-					klass = vm::Class::FromIl2CppType(current);
-		}
+        klass = hybridclr::metadata::MetadataModule::ResolveDheTypeHandleClass(klass);
 
         return il2cpp::vm::Reflection::GetTypeObject(&klass->byval_arg);
     }

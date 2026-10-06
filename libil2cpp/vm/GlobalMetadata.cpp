@@ -462,6 +462,63 @@ void il2cpp::vm::GlobalMetadata::InitializeAllMethodMetadata()
     }
 }
 
+#if HYBRIDCLR_ENABLE_AOT_SELECTION
+static bool ContainsDeferredType(const Il2CppType* type)
+{
+    if (!type) return false;
+    switch (type->type)
+    {
+        case IL2CPP_TYPE_SZARRAY: case IL2CPP_TYPE_PTR: return ContainsDeferredType(type->data.type);
+        case IL2CPP_TYPE_ARRAY: return ContainsDeferredType(type->data.array->etype);
+        case IL2CPP_TYPE_GENERICINST:
+        {
+            const Il2CppGenericClass* generic = type->data.generic_class;
+            if (ContainsDeferredType(generic->type)) return true;
+            const Il2CppGenericInst* inst = generic->context.class_inst;
+            if (inst) for (uint32_t i = 0; i < inst->type_argc; ++i)
+                if (ContainsDeferredType(inst->type_argv[i])) return true;
+            return false;
+        }
+        case IL2CPP_TYPE_CLASS: case IL2CPP_TYPE_VALUETYPE:
+        {
+            Il2CppClass* klass = il2cpp::vm::Class::FromIl2CppType(type);
+            return klass && !hybridclr::metadata::IsInterpreterImage(klass->image) &&
+                hybridclr::startup::IsDeferredAssembly(klass->image->nameNoExt);
+        }
+        default: return false;
+    }
+}
+
+static bool IsDeferredRuntimeMetadata(Il2CppMetadataUsage usage, void* value, uint32_t index)
+{
+    if (!value) return false;
+    switch (usage)
+    {
+        case kIl2CppMetadataUsageTypeInfo: return ContainsDeferredType(&static_cast<Il2CppClass*>(value)->byval_arg);
+        case kIl2CppMetadataUsageIl2CppType: return ContainsDeferredType(static_cast<const Il2CppType*>(value));
+        case kIl2CppMetadataUsageMethodDef: case kIl2CppMetadataUsageMethodRef:
+        {
+            const MethodInfo* method = static_cast<const MethodInfo*>(value);
+            if (ContainsDeferredType(&method->klass->byval_arg)) return true;
+            if (method->is_inflated && method->genericMethod)
+            {
+                const Il2CppGenericInst* inst = method->genericMethod->context.method_inst;
+                if (inst) for (uint32_t i = 0; i < inst->type_argc; ++i)
+                    if (ContainsDeferredType(inst->type_argv[i])) return true;
+            }
+            return false;
+        }
+        case kIl2CppMetadataUsageFieldInfo: case kIl2CppMetadataUsageFieldRva:
+        {
+            const FieldInfo* field = usage == kIl2CppMetadataUsageFieldInfo
+                ? static_cast<const FieldInfo*>(value) : GetFieldInfoFromIndex(index);
+            return ContainsDeferredType(&field->parent->byval_arg) || ContainsDeferredType(field->type);
+        }
+        default: return false;
+    }
+}
+#endif
+
 // This method can be called from multiple threads, so it does have a data race. However, each
 // thread is reading from the same read-only metadata, so each thread will set the same values.
 // Therefore, we can safely ignore thread sanitizer issues in this method.
@@ -514,6 +571,19 @@ void* il2cpp::vm::GlobalMetadata::InitializeRuntimeMetadata(uintptr_t* metadataP
             break;
     }
 
+#if HYBRIDCLR_ENABLE_AOT_SELECTION
+    // Native generic-table preparation may construct private Base descriptors
+    // before managed startup. Guard publication into generated AOT usages,
+    // rather than construction of those descriptors. Eager debugger preparation
+    // uses throwOnError=false and leaves deferred usages unresolved.
+    if (hybridclr::startup::GetMode() != 1 && IsDeferredRuntimeMetadata(usage, initialized, decodedIndex))
+    {
+        if (throwOnError)
+            il2cpp::vm::Exception::Raise(il2cpp::vm::Exception::GetInvalidOperationException(
+                "Generated AOT code cannot access deferred Base hotfix metadata before DHE selection."));
+        return NULL;
+    }
+#endif
     IL2CPP_ASSERT(IsRuntimeMetadataInitialized(initialized) && "ERROR: The low bit of the metadata item is still set, alignment issue");
 
     if (initialized != NULL)
@@ -1655,16 +1725,6 @@ Il2CppClass* il2cpp::vm::GlobalMetadata::FromTypeDefinition(TypeDefinitionIndex 
         typeDefinitionSizes = s_Il2CppMetadataRegistration->typeDefinitionsSizes[index];
     }
     const Il2CppImage* definitionImage = GetImageForTypeDefinitionIndex(index);
-#if HYBRIDCLR_ENABLE_AOT_SELECTION
-    // This runs only on first class construction, under g_MetadataLock. Hidden
-    // Base classes must never be cached by generated AOT indices before choice
-    // or in traditional mode; a build validator rejects normal static callers.
-    if (!hybridclr::metadata::IsInterpreterIndex(index) &&
-        hybridclr::startup::IsDeferredAssembly(definitionImage->nameNoExt) &&
-        hybridclr::startup::GetMode() != 1)
-        il2cpp::vm::Exception::Raise(il2cpp::vm::Exception::GetInvalidOperationException(
-            "AOT access to a deferred Base hotfix type requires DHE mode."));
-#endif
     Il2CppClass* typeInfo = (Il2CppClass*)IL2CPP_CALLOC(1, sizeof(Il2CppClass) + (sizeof(VirtualInvokeData) * typeDefinition->vtable_count));
     typeInfo->klass = typeInfo;
     typeInfo->image = definitionImage;
