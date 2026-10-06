@@ -116,7 +116,32 @@ struct PairToKeyConverter
 typedef il2cpp::utils::collections::ArrayValueMap<const Il2CppGuid*, std::pair<const Il2CppGuid*, Il2CppClass*>, PairToKeyConverter<const Il2CppGuid*, Il2CppClass*> > GuidToClassMap;
 static GuidToClassMap s_GuidToNonImportClassMap;
 
+#include <atomic>
 static il2cpp::utils::dynamic_array<Il2CppAssembly*> s_cliAssemblies;
+// This research fixture intentionally delays ONLY publication/name resolution.
+// Generated type indices remain intact so the test can detect hidden references.
+static std::atomic<int32_t> s_LabAotSelection{0};
+static const Il2CppAssembly* s_LabDormantAssembly = nullptr;
+static bool IsLabDeferredAssembly(const Il2CppAssembly* assembly)
+{
+    return std::strcmp(assembly->aname.name, "StartupHotfix") == 0;
+}
+
+int32_t il2cpp::vm::MetadataCache::SelectLabAotMode(int32_t mode)
+{
+    if (mode != 1 && mode != 2) return 2;
+    il2cpp::os::FastAutoLock lock(&il2cpp::vm::g_MetadataLock);
+    if (s_LabAotSelection.load(std::memory_order_acquire) != 0) return 1;
+    if (!s_LabDormantAssembly) return 3;
+    if (mode == 1) il2cpp::vm::Assembly::Register(s_LabDormantAssembly);
+    s_LabAotSelection.store(mode, std::memory_order_release);
+    return 0;
+}
+
+int32_t il2cpp::vm::MetadataCache::GetLabAotMode()
+{
+    return s_LabAotSelection.load(std::memory_order_acquire);
+}
 
 void il2cpp::vm::MetadataCache::Register(const Il2CppCodeRegistration* const codeRegistration, const Il2CppMetadataRegistration* const metadataRegistration, const Il2CppCodeGenOptions* const codeGenOptions)
 {
@@ -218,7 +243,8 @@ bool il2cpp::vm::MetadataCache::Initialize()
 
         assembly->image = il2cpp::vm::MetadataCache::GetImageFromIndex(assemblyImageIndex);
 
-        Assembly::Register(assembly);
+        if (IsLabDeferredAssembly(assembly)) s_LabDormantAssembly = assembly;
+        else Assembly::Register(assembly);
     }
 
     InitializeUnresolvedSignatureTable();
@@ -994,6 +1020,8 @@ const Il2CppAssembly* il2cpp::vm::MetadataCache::GetAssemblyByName(const char* n
     for (int i = 0; i < s_AssembliesCount; i++)
     {
         const Il2CppAssembly* assembly = s_AssembliesTable + i;
+        if (IsLabDeferredAssembly(assembly) && s_LabAotSelection.load(std::memory_order_acquire) != 1)
+            continue;
 
         if (comparer(assembly->aname.name, assemblyName) || comparer(assembly->image->name, assemblyName))
             return assembly;
@@ -1003,6 +1031,7 @@ const Il2CppAssembly* il2cpp::vm::MetadataCache::GetAssemblyByName(const char* n
 
     for (auto assembly : s_cliAssemblies)
     {
+        if (IsLabDeferredAssembly(assembly) && !assembly->token) continue;
         if (comparer(assembly->aname.name, assemblyName) || comparer(assembly->image->name, assemblyName))
             return assembly;
     }

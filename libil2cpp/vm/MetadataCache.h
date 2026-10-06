@@ -108,6 +108,9 @@ namespace vm
         static Il2CppUnresolvedCallStubs GetUnresovledCallStubs(const MethodInfo* method);
 
         static const Il2CppAssembly* GetAssemblyByName(const char* nameToFind);
+        // Diagnostic-only: tests deferred publication, not full module isolation.
+        static int32_t SelectLabAotMode(int32_t mode);
+        static int32_t GetLabAotMode();
 
         static Il2CppClass* GetTypeInfoFromType(const Il2CppType* type);
 
