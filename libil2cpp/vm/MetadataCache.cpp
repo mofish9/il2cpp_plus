@@ -130,7 +130,10 @@ int32_t il2cpp::vm::MetadataCache::SelectExecutionMode(int32_t mode)
     if (s_deferredAssemblies.empty()) return 3;
     if (mode == 1)
         for (const Il2CppAssembly* assembly : s_deferredAssemblies)
+        {
+            hybridclr::metadata::Assembly::BindDeferredUnityImage(assembly);
             il2cpp::vm::Assembly::Register(assembly);
+        }
     // Hooks and mode share a single release publication after registration.
     return hybridclr::startup::BindMode(mode);
 #else

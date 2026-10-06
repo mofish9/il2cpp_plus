@@ -39,6 +39,7 @@
 #include "vm-utils/Debugger.h"
 #include "vm-utils/NativeSymbol.h"
 #include "hybridclr/DheRuntime.h"
+#include "hybridclr/metadata/Assembly.h"
 
 #include "gc/GarbageCollector.h"
 #include "gc/GCHandle.h"
@@ -230,7 +231,11 @@ int il2cpp_array_element_size(const Il2CppClass* klass)
 // assembly
 const Il2CppImage* il2cpp_assembly_get_image(const Il2CppAssembly *assembly)
 {
+#if HYBRIDCLR_ENABLE_AOT_SELECTION
+    return hybridclr::metadata::Assembly::GetDeferredUnityImage(Assembly::GetImage(assembly));
+#else
     return Assembly::GetImage(assembly);
+#endif
 }
 
 // class
@@ -456,7 +461,12 @@ const Il2CppImage* il2cpp_class_get_image(Il2CppClass* klass)
     // Unity indexes serialization support by the registered assembly image.
     // Current classes keep their own metadata image internally; only this
     // public ownership query follows their already-published assembly identity.
-    return hybridclr::dhe::ResolvePublicAssemblyImage(Class::GetImage(klass));
+    const Il2CppImage* image = hybridclr::dhe::ResolvePublicAssemblyImage(Class::GetImage(klass));
+#if HYBRIDCLR_ENABLE_AOT_SELECTION
+    return hybridclr::metadata::Assembly::GetDeferredUnityImage(image);
+#else
+    return image;
+#endif
 }
 
 const char *il2cpp_class_get_assemblyname(const Il2CppClass *klass)
@@ -580,6 +590,12 @@ Il2CppDomain* il2cpp_domain_get()
 
 const Il2CppAssembly* il2cpp_domain_assembly_open(Il2CppDomain *domain, const char *name)
 {
+#if HYBRIDCLR_ENABLE_AOT_SELECTION
+    // Unity needs a stable empty image before managed mode selection. Managed
+    // Assembly.Load/name lookup continues to use MetadataCache's visibility rule.
+    if (const Il2CppAssembly* assembly = hybridclr::metadata::Assembly::FindDeferredUnityAssembly(name))
+        return assembly;
+#endif
     return Assembly::Load(name);
 }
 
